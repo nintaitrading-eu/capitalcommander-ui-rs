@@ -1,0 +1,9 @@
+[package]
+name = "capitalcommander-ui-rs"
+version = "0.1.0"
+authors = ["Andy Nagels <thereisanewway@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+actix-web = "3"
+tera = "1.5.0"
