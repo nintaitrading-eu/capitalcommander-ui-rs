@@ -2,6 +2,8 @@ use actix_web::{HttpServer, App, web, HttpResponse, Responder};
 use tera::{Tera, Context}; 
 use serde::{Serialize, Deserialize};
 
+pub mod version;
+
 #[derive(Debug, Deserialize)]
 struct User {
     username: String,
@@ -102,6 +104,7 @@ async fn main() -> std::io::Result<()> {
             .route("/login", web::post().to(process_login))
             .route("/entry", web::get().to(entry))
             .route("/entry", web::post().to(process_entry))
+            .route("/version", web::to(version::version_controller::index))
     })
     .bind("127.0.0.1:8080")?
     .run()
