@@ -51,6 +51,7 @@ export component AppWindow inherits Window {
     private property <color> primary: #ebdbb2;
     private property <color> secondary: #d5c4a1;
     private property <color> muted: #bdae93;
+    private property <color> aqua: #8ec07c;
     private property <color> accent: #fabd2f;
     private property <color> surface: #3c3836;
     private property <color> divider: #504945;
@@ -78,7 +79,7 @@ export component AppWindow inherits Window {
 
     MenuBar {
         Menu {
-            title: "Version";
+            title: "File";
             MenuItem { title: "About"; activated => { root.page = "About"; } }
             MenuItem { title: "Quit"; activated => { root.quit(); } }
         }
@@ -97,21 +98,21 @@ export component AppWindow inherits Window {
         }
     }
 
-    VerticalBox {
+    VerticalBox
+    {
         padding: 24px;
         spacing: 14px;
-        HorizontalBox {
-            Text { text: "CAPITALCOMMANDER"; color: root.accent; font-size: 15px; font-weight: 700; }
-            Rectangle { horizontal-stretch: 1; }
-            Text { text: root.source-label; color: root.secondary; font-size: 12px; }
-        }
         Rectangle { height: 1px; background: root.divider; }
-        HorizontalBox {
+        HorizontalBox
+        {
             spacing: 16px;
-            Text { text: root.page; color: root.primary; font-size: 28px; font-weight: 700; }
+            Text { text: root.page; color: root.accent; font-size: 28px; font-weight: 700; }
             Rectangle { horizontal-stretch: 1; }
-            Text { text: "Product"; color: root.secondary; vertical-alignment: center; }
-            filter := ComboBox {
+            Text { text: root.source-label; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Journal": Text { text: "Current pool goes here?"; color: root.aqua; vertical-alignment: center; }
+            if root.page == "Journal": Text { text: "Product"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Journal": filter := ComboBox
+            {
                 width: 220px;
                 model: root.filters;
                 current-value: root.selected-product;
@@ -373,7 +374,7 @@ export component AppWindow inherits Window {
         if root.page == "About": VerticalBox {
             spacing: 9px;
             Text { text: "CapitalCommander"; color: root.primary; font-size: 22px; font-weight: 600; }
-            Text { text: "CFD trading journal with a local SQLite database."; color: root.secondary; }
+            Text { text: "Trading journal with a local SQLite database."; color: root.secondary; }
             Text { text: "Products, trades, calculations, costs, and financing are stored in related tables."; color: root.secondary; }
             Rectangle { vertical-stretch: 1; }
         }
