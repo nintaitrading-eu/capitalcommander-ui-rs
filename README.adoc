@@ -1,5 +1,0 @@
-= CapitalCommander web application
-
-== General info
-
-Acts as a frontend to capitalcommander-api-rs.
