@@ -52,6 +52,13 @@ CREATE TABLE t_trade_cost (
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+CREATE TABLE t_pool(
+    pool_id INTEGER PRIMARY KEY,
+    pool_value REAL NOT NULL DEFAULT 0 CHECK (pool_value >= 0),
+    date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
 CREATE TABLE t_trade_calculated (
     trade_calculated_id INTEGER PRIMARY KEY,
     risk_initial REAL NOT NULL DEFAULT 0 CHECK (risk_initial >= 0),
@@ -100,6 +107,8 @@ CREATE TABLE t_financing (
 
 CREATE INDEX idx_financing_trade ON t_financing(trade_id, date);
 
+INSERT INTO t_pool(pool_value) VALUES
+    (75000.0);
 INSERT INTO t_product_type(name, description) VALUES
     ('cfd', 'Contracts for difference');
 INSERT INTO t_currency(code, description) VALUES
