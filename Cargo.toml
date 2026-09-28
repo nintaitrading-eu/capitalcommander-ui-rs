@@ -1,0 +1,12 @@
+[package]
+name = "capitalcommander-ui-rs"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+slint = "=1.18.1"
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+[build-dependencies]
+slint-build = "=1.18.1"

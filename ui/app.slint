@@ -1,0 +1,309 @@
+import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Palette } from "std-widgets.slint";
+
+export struct TradeRow {
+    id: int,
+    product: string,
+    side: string,
+    dates: string,
+    quantity: string,
+    profit: string,
+    r: string,
+}
+
+export struct FinancingRow {
+    id: int,
+    trade: string,
+    date: string,
+    terms: string,
+    value: string,
+    note: string,
+}
+
+export struct ProductRow {
+    name: string,
+    description: string,
+    currency: string,
+    market: string,
+}
+
+export component AppWindow inherits Window {
+    title: "CapitalCommander · Trade Journal";
+    preferred-width: 1120px;
+    preferred-height: 760px;
+    background: #282828;
+    default-font-size: 14px;
+    init => { Palette.color-scheme = ColorScheme.dark; }
+
+    private property <color> primary: #ebdbb2;
+    private property <color> secondary: #d5c4a1;
+    private property <color> muted: #bdae93;
+    private property <color> accent: #fabd2f;
+    private property <color> surface: #3c3836;
+    private property <color> divider: #504945;
+    in-out property <string> page: "Journal";
+    in-out property <string> status: "Ready";
+    in-out property <string> source-label: "capitalcommander.sqlite3";
+    in-out property <string> selected-product: "All products";
+    in-out property <[string]> products;
+    in-out property <[ProductRow]> product-details;
+    in-out property <[string]> filters;
+    in-out property <[TradeRow]> trades;
+    in-out property <[FinancingRow]> financing;
+    in-out property <string> trade-count: "0";
+    in-out property <string> win-rate: "—";
+    in-out property <string> expectancy: "—";
+    in-out property <string> total-pl: "—";
+    in-out property <string> financing-total: "—";
+
+    callback filter-product(string);
+    callback save-trade(string, string, string, string, string, string, string, string, string, string, string, string);
+    callback save-financing(string, string, string, string, string, string, string, string, string);
+    callback save-product(string, string, string, string);
+    callback quit();
+
+    MenuBar {
+        Menu {
+            title: "Version";
+            MenuItem { title: "About"; activated => { root.page = "About"; } }
+            MenuItem { title: "Quit"; activated => { root.quit(); } }
+        }
+        Menu {
+            title: "Trade";
+            MenuItem { title: "Journal"; activated => { root.page = "Journal"; } }
+            MenuItem { title: "Expectancy"; activated => { root.page = "Expectancy"; } }
+        }
+        Menu {
+            title: "Finance";
+            MenuItem { title: "Financing"; activated => { root.page = "Financing"; } }
+        }
+        Menu {
+            title: "Admin";
+            MenuItem { title: "Products"; activated => { root.page = "Products"; } }
+        }
+    }
+
+    VerticalBox {
+        padding: 24px;
+        spacing: 14px;
+        HorizontalBox {
+            Text { text: "CAPITALCOMMANDER"; color: root.accent; font-size: 15px; font-weight: 700; }
+            Rectangle { horizontal-stretch: 1; }
+            Text { text: root.source-label; color: root.secondary; font-size: 12px; }
+        }
+        Rectangle { height: 1px; background: root.divider; }
+        HorizontalBox {
+            spacing: 16px;
+            Text { text: root.page; color: root.primary; font-size: 28px; font-weight: 700; }
+            Rectangle { horizontal-stretch: 1; }
+            Text { text: "Product"; color: root.secondary; vertical-alignment: center; }
+            filter := ComboBox {
+                width: 220px;
+                model: root.filters;
+                current-value: root.selected-product;
+                selected(value) => { root.selected-product = value; root.filter-product(value); }
+            }
+        }
+
+        if root.page == "Journal" || root.page == "Expectancy": VerticalBox {
+            spacing: 12px;
+            HorizontalBox {
+                spacing: 10px;
+                Rectangle { background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    VerticalBox { padding: 12px; spacing: 4px;
+                        Text { text: "CLOSED TRADES"; color: root.muted; font-size: 11px; }
+                        Text { text: root.trade-count; color: root.primary; font-size: 23px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    VerticalBox { padding: 12px; spacing: 4px;
+                        Text { text: "WIN RATE"; color: root.muted; font-size: 11px; }
+                        Text { text: root.win-rate; color: root.primary; font-size: 23px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    VerticalBox { padding: 12px; spacing: 4px;
+                        Text { text: "EXPECTANCY"; color: root.muted; font-size: 11px; }
+                        Text { text: root.expectancy; color: root.accent; font-size: 23px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    VerticalBox { padding: 12px; spacing: 4px;
+                        Text { text: "TOTAL P/L"; color: root.muted; font-size: 11px; }
+                        Text { text: root.total-pl; color: root.primary; font-size: 23px; font-weight: 700; }
+                    }
+                }
+            }
+            if root.page == "Expectancy": VerticalBox {
+                spacing: 8px;
+                Text { text: "Expectancy = average of (trade P/L ÷ initial risk)"; color: root.primary; font-size: 17px; }
+                Text { text: "Only closed trades with a positive initial risk are included. The product selector updates all figures above."; color: root.secondary; }
+                Text { text: "P/L is the gross price move; initial risk is entered with each trade. Costs are stored separately."; color: root.secondary; }
+                Rectangle { vertical-stretch: 1; }
+            }
+            if root.page == "Journal": VerticalBox {
+                spacing: 9px;
+                Text { text: "Log CFD trade"; color: root.accent; font-size: 17px; font-weight: 600; }
+                HorizontalBox {
+                    spacing: 8px;
+                    VerticalBox { Text { text: "Product name"; color: root.secondary; }
+                        trade-product := ComboBox { width: 180px; model: root.products; }
+                    }
+                    VerticalBox { Text { text: "Side"; color: root.secondary; }
+                        trade-side := ComboBox { width: 90px; model: ["Long", "Short"]; current-value: "Long"; }
+                    }
+                    VerticalBox { Text { text: "Buy date"; color: root.secondary; }
+                        buy-date := LineEdit { placeholder-text: "YYYY-MM-DD"; }
+                    }
+                    VerticalBox { Text { text: "Sell date"; color: root.secondary; }
+                        sell-date := LineEdit { placeholder-text: "YYYY-MM-DD"; }
+                    }
+                    VerticalBox { Text { text: "Quantity"; color: root.secondary; }
+                        quantity := LineEdit { text: "1"; }
+                    }
+                }
+                HorizontalBox {
+                    spacing: 8px;
+                    VerticalBox { Text { text: "Buy price"; color: root.secondary; }
+                        buy-price := LineEdit { text: "0"; }
+                    }
+                    VerticalBox { Text { text: "Sell price"; color: root.secondary; }
+                        sell-price := LineEdit { text: "0"; }
+                    }
+                    VerticalBox { Text { text: "Commission"; color: root.secondary; }
+                        commission := LineEdit { text: "0"; }
+                    }
+                    VerticalBox { Text { text: "Tax"; color: root.secondary; }
+                        tax := LineEdit { text: "0"; }
+                    }
+                    VerticalBox { Text { text: "Other costs"; color: root.secondary; }
+                        other-costs := LineEdit { text: "0"; }
+                    }
+                    VerticalBox { Text { text: "Initial risk"; color: root.secondary; }
+                        risk := LineEdit { text: "0"; }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button { text: "Log trade"; clicked => {
+                        root.save-trade(trade-product.current-value, trade-side.current-value,
+                            buy-date.text, sell-date.text, quantity.text, buy-price.text,
+                            sell-price.text, commission.text, tax.text, other-costs.text,
+                            risk.text, root.selected-product);
+                    } }
+                }
+                Text { text: "Journal"; color: root.primary; font-size: 17px; font-weight: 600; }
+                Rectangle { height: 1px; background: root.divider; }
+                HorizontalBox { spacing: 12px;
+                    Text { text: "ID"; width: 45px; color: root.muted; }
+                    Text { text: "PRODUCT"; width: 170px; color: root.muted; }
+                    Text { text: "SIDE"; width: 65px; color: root.muted; }
+                    Text { text: "BUY → SELL"; width: 205px; color: root.muted; }
+                    Text { text: "QTY"; width: 75px; color: root.muted; }
+                    Text { text: "P/L"; width: 110px; color: root.muted; }
+                    Text { text: "R"; color: root.muted; }
+                }
+                ScrollView { vertical-stretch: 1;
+                    VerticalBox { spacing: 3px;
+                        for trade in root.trades: Rectangle { height: 40px; background: root.surface; border-radius: 4px;
+                            HorizontalBox { padding: 9px; spacing: 12px;
+                                Text { text: "#" + trade.id; width: 45px; color: root.muted; }
+                                Text { text: trade.product; width: 170px; color: root.primary; font-weight: 600; }
+                                Text { text: trade.side; width: 65px; color: root.secondary; }
+                                Text { text: trade.dates; width: 205px; color: root.secondary; }
+                                Text { text: trade.quantity; width: 75px; color: root.secondary; }
+                                Text { text: trade.profit; width: 110px; color: root.primary; }
+                                Text { text: trade.r; color: root.accent; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.page == "Financing": VerticalBox {
+            spacing: 10px;
+            Text { text: "Financing total: " + root.financing-total; color: root.accent; font-size: 18px; font-weight: 600; }
+            Text { text: "Log financing"; color: root.primary; font-size: 17px; font-weight: 600; }
+            HorizontalBox { spacing: 8px;
+                VerticalBox { Text { text: "Trade ID"; color: root.secondary; } fin-trade := LineEdit { placeholder-text: "Trade ID"; } }
+                VerticalBox { Text { text: "Date"; color: root.secondary; } fin-date := LineEdit { placeholder-text: "YYYY-MM-DD"; } }
+                VerticalBox { Text { text: "Quantity"; color: root.secondary; } fin-qty := LineEdit { text: "1"; } }
+                VerticalBox { Text { text: "Price"; color: root.secondary; } fin-price := LineEdit { text: "0"; } }
+                VerticalBox { Text { text: "Rate %"; color: root.secondary; } fin-rate := LineEdit { text: "0"; } }
+            }
+            HorizontalBox { spacing: 8px;
+                VerticalBox { Text { text: "Exchange rate"; color: root.secondary; } fin-exchange := LineEdit { text: "1"; } }
+                VerticalBox { Text { text: "Days"; color: root.secondary; } fin-days := LineEdit { text: "1"; } }
+                VerticalBox { Text { text: "Value"; color: root.secondary; } fin-value := LineEdit { placeholder-text: "Auto"; } }
+                VerticalBox { Text { text: "Note"; color: root.secondary; } fin-note := LineEdit { placeholder-text: "Optional"; } }
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: "Log financing"; clicked => {
+                    root.save-financing(fin-trade.text, fin-date.text, fin-qty.text, fin-price.text,
+                        fin-rate.text, fin-exchange.text, fin-days.text, fin-value.text, fin-note.text);
+                } }
+            }
+            Text { text: "Financing entries"; color: root.primary; font-size: 17px; font-weight: 600; }
+            Rectangle { height: 1px; background: root.divider; }
+            ScrollView { vertical-stretch: 1;
+                VerticalBox { spacing: 3px;
+                    for row in root.financing: Rectangle { height: 40px; background: root.surface; border-radius: 4px;
+                        HorizontalBox { padding: 9px; spacing: 14px;
+                            Text { text: "#" + row.id; width: 55px; color: root.muted; }
+                            Text { text: row.trade; width: 105px; color: root.primary; }
+                            Text { text: row.date; width: 115px; color: root.secondary; }
+                            Text { text: row.terms; width: 290px; color: root.secondary; }
+                            Text { text: row.value; width: 90px; color: root.accent; }
+                            Text { text: row.note; color: root.secondary; }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.page == "Products": VerticalBox {
+            spacing: 9px;
+            Text { text: "Add CFD product"; color: root.accent; font-size: 17px; font-weight: 600; }
+            HorizontalBox { spacing: 8px;
+                VerticalBox { Text { text: "Name"; color: root.secondary; }
+                    product-name := LineEdit { placeholder-text: "Product code"; }
+                }
+                VerticalBox { Text { text: "Description"; color: root.secondary; }
+                    product-description := LineEdit { placeholder-text: "Description"; }
+                }
+                VerticalBox { Text { text: "Currency"; color: root.secondary; }
+                    product-currency := ComboBox { width: 90px; model: ["EUR", "USD", "GBP"]; current-value: "EUR"; }
+                }
+                VerticalBox { Text { text: "Market"; color: root.secondary; }
+                    product-market := ComboBox { width: 185px;
+                        model: ["cfd other non-share", "cfd .gold", "cfd .silver", "cfd oil"];
+                        current-value: "cfd other non-share";
+                    }
+                }
+                Button { text: "Add product"; clicked => {
+                    root.save-product(product-name.text, product-description.text,
+                        product-currency.current-value, product-market.current-value);
+                } }
+            }
+            Text { text: "Product catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
+            ScrollView { vertical-stretch: 1;
+                VerticalBox { spacing: 3px;
+                    for product in root.product-details: Rectangle { height: 38px; background: root.surface; border-radius: 4px;
+                        HorizontalBox { padding: 9px; spacing: 14px;
+                            Text { text: product.name; width: 170px; color: root.primary; font-weight: 600; }
+                            Text { text: product.currency; width: 50px; color: root.accent; }
+                            Text { text: product.market; width: 170px; color: root.secondary; }
+                            Text { text: product.description; color: root.secondary; }
+                        }
+                    }
+                }
+            }
+        }
+        if root.page == "About": VerticalBox {
+            spacing: 9px;
+            Text { text: "CapitalCommander"; color: root.primary; font-size: 22px; font-weight: 600; }
+            Text { text: "CFD trading journal with a local SQLite database."; color: root.secondary; }
+            Text { text: "Products, trades, calculations, costs, and financing are stored in related tables."; color: root.secondary; }
+            Rectangle { vertical-stretch: 1; }
+        }
+        Rectangle { height: 1px; background: root.divider; }
+        Text { text: root.status; color: root.muted; font-size: 12px; }
+    }
+}
