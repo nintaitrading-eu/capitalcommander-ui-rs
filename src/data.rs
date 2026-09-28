@@ -17,6 +17,13 @@ pub struct Trade {
     pub sell_date: String,
     pub is_long: bool,
     pub quantity: f64,
+    pub buy_price: f64,
+    pub sell_price: f64,
+    pub commission_buy: f64,
+    pub tax_buy: f64,
+    pub commission_sell: f64,
+    pub tax_sell: f64,
+    pub other_costs: f64,
     pub initial_risk: f64,
     pub profit_loss: Option<f64>,
 }
@@ -136,8 +143,11 @@ impl Store {
             .connection
             .prepare(
                 "SELECT t.trade_id, p.name, t.date_buy, COALESCE(t.date_sell, ''),
-                    t.is_long, t.shares_buy, calc.risk_initial, calc.profit_loss
+                    t.is_long, t.shares_buy, t.price_buy, t.price_sell,
+                    cost.commission_buy, cost.tax_buy, cost.commission_sell,
+                    cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
+             JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
              JOIN t_trade_calculated calc ON calc.trade_calculated_id = t.trade_calculated_id
              WHERE t.is_deleted = 0 ORDER BY t.trade_id",
             )
@@ -151,8 +161,15 @@ impl Store {
                     sell_date: row.get(3)?,
                     is_long: row.get(4)?,
                     quantity: row.get(5)?,
-                    initial_risk: row.get(6)?,
-                    profit_loss: row.get(7)?,
+                    buy_price: row.get(6)?,
+                    sell_price: row.get(7)?,
+                    commission_buy: row.get(8)?,
+                    tax_buy: row.get(9)?,
+                    commission_sell: row.get(10)?,
+                    tax_sell: row.get(11)?,
+                    other_costs: row.get(12)?,
+                    initial_risk: row.get(13)?,
+                    profit_loss: row.get(14)?,
                 })
             })
             .map_err(db_error)?;
@@ -228,8 +245,8 @@ impl Store {
             .ok_or("Unknown market")?;
         self.connection
             .execute(
-                "INSERT INTO t_product(name, description, product_type_id, currency_id, market_id)
-             VALUES (?1, ?2, 1, ?3, ?4)",
+                "INSERT INTO t_product(name, description, product_type_id, currency_id, market_id, tick, tick_value)
+             VALUES (?1, ?2, 1, ?3, ?4, 1, 1)",
                 params![name, description.trim(), currency_id, market_id],
             )
             .map_err(db_error)?;
@@ -247,22 +264,7 @@ impl Store {
             .optional()
             .map_err(db_error)?
             .ok_or("Select a product by name")?;
-        let profit_loss = trade.sell_date.as_ref().map(|_| {
-            (if trade.is_long {
-                trade.sell_price - trade.buy_price
-            } else {
-                trade.buy_price - trade.sell_price
-            }) * trade.quantity
-        });
-        if profit_loss.is_some_and(|value| !value.is_finite()) {
-            return Err("Calculated P/L is too large".into());
-        }
-        let r_multiple = profit_loss
-            .filter(|_| trade.initial_risk > 0.0)
-            .map(|pl| pl / trade.initial_risk);
-        if r_multiple.is_some_and(|value| !value.is_finite()) {
-            return Err("Calculated R is too large".into());
-        }
+        let (profit_loss, r_multiple) = trade_calculations(&trade)?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
@@ -286,6 +288,74 @@ impl Store {
             params![calculated_id, product_id, cost_id, trade.buy_date, trade.sell_date,
                     trade.is_long, trade.quantity, if profit_loss.is_some() { trade.quantity } else { 0.0 },
                     trade.buy_price, trade.sell_price]
+        ).map_err(db_error)?;
+        transaction.commit().map_err(db_error)?;
+        Ok(())
+    }
+
+    pub fn update_trade(&mut self, id: i64, trade: NewTrade) -> Result<(), String> {
+        let product_id: i64 = self
+            .connection
+            .query_row(
+                "SELECT product_id FROM t_product WHERE name = ?1 AND is_deleted = 0",
+                [&trade.product],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(db_error)?
+            .ok_or("Select a product by name")?;
+        let (profit_loss, r_multiple) = trade_calculations(&trade)?;
+        let (cost_id, calculated_id): (i64, i64) = self.connection.query_row(
+            "SELECT trade_cost_id, trade_calculated_id FROM t_trade WHERE trade_id = ?1 AND is_deleted = 0",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).optional().map_err(db_error)?.ok_or_else(|| format!("Trade #{id} does not exist"))?;
+        let transaction = self.connection.transaction().map_err(db_error)?;
+        transaction
+            .execute(
+                "UPDATE t_trade_cost SET commission_buy = ?1, tax_buy = ?2, commission_sell = ?3,
+             tax_sell = ?4, other = ?5, date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE trade_cost_id = ?6",
+                params![
+                    trade.commission_buy,
+                    trade.tax_buy,
+                    trade.commission_sell,
+                    trade.tax_sell,
+                    trade.other_costs,
+                    cost_id
+                ],
+            )
+            .map_err(db_error)?;
+        transaction
+            .execute(
+                "UPDATE t_trade SET product_id = ?1, date_buy = ?2, date_sell = ?3, is_long = ?4,
+             shares_buy = ?5, shares_sell = ?6, price_buy = ?7, price_sell = ?8,
+             date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE trade_id = ?9",
+                params![
+                    product_id,
+                    trade.buy_date,
+                    trade.sell_date,
+                    trade.is_long,
+                    trade.quantity,
+                    if profit_loss.is_some() {
+                        trade.quantity
+                    } else {
+                        0.0
+                    },
+                    trade.buy_price,
+                    trade.sell_price,
+                    id
+                ],
+            )
+            .map_err(db_error)?;
+        transaction.execute(
+            "UPDATE t_trade_calculated SET risk_initial = ?1, profit_loss = ?2,
+             profit_loss_total = ?2 - ?3 - ?4 - ?5 - ?6 - ?7 -
+                (SELECT COALESCE(SUM(value), 0) FROM t_financing WHERE trade_id = ?9 AND is_deleted = 0),
+             r_multiple = ?8, date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE trade_calculated_id = ?10",
+            params![trade.initial_risk, profit_loss, trade.commission_buy, trade.tax_buy,
+                trade.commission_sell, trade.tax_sell, trade.other_costs, r_multiple, id, calculated_id],
         ).map_err(db_error)?;
         transaction.commit().map_err(db_error)?;
         Ok(())
@@ -325,6 +395,26 @@ impl Store {
         transaction.commit().map_err(db_error)?;
         Ok(())
     }
+}
+
+fn trade_calculations(trade: &NewTrade) -> Result<(Option<f64>, Option<f64>), String> {
+    let profit_loss = trade.sell_date.as_ref().map(|_| {
+        (if trade.is_long {
+            trade.sell_price - trade.buy_price
+        } else {
+            trade.buy_price - trade.sell_price
+        }) * trade.quantity
+    });
+    if profit_loss.is_some_and(|value| !value.is_finite()) {
+        return Err("Calculated P/L is too large".into());
+    }
+    let r_multiple = profit_loss
+        .filter(|_| trade.initial_risk > 0.0)
+        .map(|pl| pl / trade.initial_risk);
+    if r_multiple.is_some_and(|value| !value.is_finite()) {
+        return Err("Calculated R is too large".into());
+    }
+    Ok((profit_loss, r_multiple))
 }
 
 fn db_error(error: rusqlite::Error) -> String {
@@ -376,7 +466,7 @@ mod tests {
         let saved_costs: (f64, f64, f64) = store
             .connection
             .query_row(
-                "SELECT commission, tax, other FROM t_trade_cost",
+                "SELECT commission_buy, tax_buy, other FROM t_trade_cost",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -405,7 +495,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert!((net - 2.9).abs() < 1e-10);
+        assert!((net - 1.05).abs() < 1e-10);
         assert!(store
             .add_financing(NewFinancing {
                 trade_id: 999,
@@ -419,6 +509,80 @@ mod tests {
                 note: String::new(),
             })
             .is_err());
+    }
+
+    #[test]
+    fn closes_an_existing_trade_without_changing_its_id_or_financing() {
+        let mut store = Store::open(Path::new(":memory:")).unwrap();
+        let open_trade = NewTrade {
+            product: ".MGOLD.cfd".into(),
+            buy_date: "2026-09-28".into(),
+            sell_date: None,
+            is_long: true,
+            quantity: 2.0,
+            buy_price: 10.0,
+            sell_price: 11.0,
+            commission_buy: 0.5,
+            tax_buy: 0.25,
+            commission_sell: 0.0,
+            tax_sell: 0.0,
+            other_costs: 0.0,
+            initial_risk: 2.0,
+        };
+        store.add_trade(open_trade).unwrap();
+        let id = store.load().unwrap().trades[0].id;
+        assert_eq!(store.load().unwrap().trades[0].sell_price, 11.0);
+        assert_eq!(store.load().unwrap().trades[0].profit_loss, None);
+        store
+            .add_financing(NewFinancing {
+                trade_id: id,
+                date: "2026-09-29".into(),
+                quantity: 2.0,
+                price: 10.0,
+                rate: 1.0,
+                exchange_rate: 1.0,
+                days: 1,
+                value: 0.1,
+                note: String::new(),
+            })
+            .unwrap();
+        store
+            .update_trade(
+                id,
+                NewTrade {
+                    product: ".MGOLD.cfd".into(),
+                    buy_date: "2026-09-28".into(),
+                    sell_date: Some("2026-09-30".into()),
+                    is_long: true,
+                    quantity: 2.0,
+                    buy_price: 10.0,
+                    sell_price: 12.0,
+                    commission_buy: 0.5,
+                    tax_buy: 0.25,
+                    commission_sell: 1.0,
+                    tax_sell: 0.25,
+                    other_costs: 0.4,
+                    initial_risk: 2.0,
+                },
+            )
+            .unwrap();
+        let journal = store.load().unwrap();
+        assert_eq!(journal.trades.len(), 1);
+        assert_eq!(journal.trades[0].id, id);
+        assert_eq!(journal.trades[0].sell_date, "2026-09-30");
+        assert_eq!(journal.trades[0].sell_price, 12.0);
+        assert_eq!(journal.trades[0].other_costs, 0.4);
+        assert_eq!(journal.trades[0].profit_loss, Some(4.0));
+        assert_eq!(journal.financing.len(), 1);
+        let net: f64 = store
+            .connection
+            .query_row(
+                "SELECT profit_loss_total FROM t_trade_calculated",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!((net - 1.5).abs() < 1e-10);
     }
 
     #[test]

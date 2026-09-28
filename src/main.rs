@@ -46,7 +46,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let model = journal.clone();
     let database = store.clone();
     window.on_save_trade(
-        move |product,
+        move |trade_id,
+              product,
               side,
               buy_date,
               sell_date,
@@ -73,13 +74,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     check_date(&buy_date, "Buy date", false)?;
                     check_date(&sell_date, "Sell date", true)?;
+                    if !sell_date.is_empty() && sell_date < buy_date {
+                        return Err("Sell date must be on or after buy date".into());
+                    }
                     let quantity = positive(&quantity, "Quantity")?;
                     let buy_price = nonnegative(&buy_price, "Buy price")?;
-                    let sell_price = if sell_date.is_empty() {
-                        0.0
-                    } else {
-                        nonnegative(&sell_price, "Sell price")?
-                    };
+                    let sell_price = nonnegative(&sell_price, "Sell price")?;
                     let commission_buy = nonnegative(&commission_buy, "Commission buy")?;
                     let tax_buy = nonnegative(&tax_buy, "Tax buy")?;
                     let commission_sell = nonnegative(&commission_sell, "Commission sell")?;
@@ -87,7 +87,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let other_costs = nonnegative(&other_costs, "Other costs")?;
                     let risk = nonnegative(&risk, "Initial risk")?;
                     let is_long = side == "Long";
-                    database.borrow_mut().add_trade(NewTrade {
+                    let trade = NewTrade {
                         product: product.into(),
                         buy_date: buy_date.into(),
                         sell_date: if sell_date.is_empty() {
@@ -105,17 +105,35 @@ fn main() -> Result<(), slint::PlatformError> {
                         tax_sell,
                         other_costs,
                         initial_risk: risk,
-                    })?;
+                    };
+                    if trade_id == 0 {
+                        database.borrow_mut().add_trade(trade)?;
+                    } else {
+                        database.borrow_mut().update_trade(trade_id as i64, trade)?;
+                    }
                     *model.borrow_mut() = database.borrow().load()?;
                     Ok(())
                 })();
                 match result {
                     Ok(()) => {
                         refresh(&window, &model.borrow(), &filter);
-                        window.set_status("Trade saved".into());
+                        window.set_status(
+                            if trade_id == 0 {
+                                "Trade saved"
+                            } else {
+                                "Trade updated"
+                            }
+                            .into(),
+                        );
+                        true
                     }
-                    Err(error) => window.set_status(error.into()),
+                    Err(error) => {
+                        window.set_status(error.into());
+                        false
+                    }
                 }
+            } else {
+                false
             }
         },
     );
@@ -204,6 +222,7 @@ fn main() -> Result<(), slint::PlatformError> {
     window.on_quit(|| {
         let _ = slint::quit_event_loop();
     });
+    window.window().set_maximized(true);
     window.run()
 }
 
@@ -281,7 +300,18 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str) {
                 }
             )
             .into(),
+            buy_date: trade.buy_date.clone().into(),
+            sell_date: trade.sell_date.clone().into(),
             quantity: format_number(trade.quantity).into(),
+            edit_quantity: trade.quantity.to_string().into(),
+            buy_price: trade.buy_price.to_string().into(),
+            sell_price: trade.sell_price.to_string().into(),
+            commission_buy: trade.commission_buy.to_string().into(),
+            tax_buy: trade.tax_buy.to_string().into(),
+            commission_sell: trade.commission_sell.to_string().into(),
+            tax_sell: trade.tax_sell.to_string().into(),
+            other_costs: trade.other_costs.to_string().into(),
+            initial_risk: trade.initial_risk.to_string().into(),
             profit: trade
                 .profit_loss
                 .map(|n| format!("{n:+.2}"))
@@ -402,6 +432,13 @@ mod tests {
             sell_date: "2026-01-02".into(),
             is_long: true,
             quantity: 1.0,
+            buy_price: 1.0,
+            sell_price: 2.0,
+            commission_buy: 0.0,
+            tax_buy: 0.0,
+            commission_sell: 0.0,
+            tax_sell: 0.0,
+            other_costs: 0.0,
             initial_risk: 10.0,
             profit_loss: Some(-5.0),
         };

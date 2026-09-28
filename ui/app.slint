@@ -5,7 +5,18 @@ export struct TradeRow {
     product: string,
     side: string,
     dates: string,
+    buy-date: string,
+    sell-date: string,
     quantity: string,
+    edit-quantity: string,
+    buy-price: string,
+    sell-price: string,
+    commission-buy: string,
+    tax-buy: string,
+    commission-sell: string,
+    tax-sell: string,
+    other-costs: string,
+    initial-risk: string,
     profit: string,
     r: string,
 }
@@ -28,6 +39,9 @@ export struct ProductRow {
 
 export component AppWindow inherits Window {
     title: "CapitalCommander · Trade Journal";
+    // Keep the native window constraints stable when conditional controls change.
+    min-width: 1000px;
+    min-height: 600px;
     preferred-width: 1120px;
     preferred-height: 760px;
     background: #282828;
@@ -48,6 +62,7 @@ export component AppWindow inherits Window {
     in-out property <[ProductRow]> product-details;
     in-out property <[string]> filters;
     in-out property <[TradeRow]> trades;
+    private property <int> editing-trade-id: 0;
     in-out property <[FinancingRow]> financing;
     in-out property <string> trade-count: "0";
     in-out property <string> win-rate: "—";
@@ -56,7 +71,7 @@ export component AppWindow inherits Window {
     in-out property <string> financing-total: "—";
 
     callback filter-product(string);
-    callback save-trade(string, string, string, string, string, string, string, string, string, string, string, string, string, string);
+    callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
     callback quit();
@@ -142,7 +157,25 @@ export component AppWindow inherits Window {
             }
             if root.page == "Journal": VerticalBox {
                 spacing: 9px;
-                Text { text: "Log trade"; color: root.accent; font-size: 17px; font-weight: 600; }
+                HorizontalBox {
+                    Text { text: root.editing-trade-id == 0 ? "Log trade" : "Edit trade #" + root.editing-trade-id; color: root.accent; font-size: 17px; font-weight: 600; }
+                    Rectangle { horizontal-stretch: 1; }
+                    if root.editing-trade-id != 0: Button { text: "New trade"; clicked => {
+                        root.editing-trade-id = 0;
+                        trade-side.current-value = "Long";
+                        buy-date.text = "";
+                        sell-date.text = "";
+                        quantity.text = "1";
+                        buy-price.text = "0";
+                        sell-price.text = "0";
+                        commission-buy.text = "0";
+                        tax-buy.text = "0";
+                        commission-sell.text = "0";
+                        tax-sell.text = "0";
+                        other-costs.text = "0";
+                        risk.text = "0";
+                    } }
+                }
                 HorizontalBox {
                     spacing: 8px;
                     VerticalBox { Text { text: "Product name"; color: root.secondary; }
@@ -188,14 +221,33 @@ export component AppWindow inherits Window {
                         risk := LineEdit { text: "0"; }
                     }
                     Rectangle { horizontal-stretch: 1; } }
-                    Button { text: "Log trade"; clicked => {
-                        root.save-trade(trade-product.current-value, trade-side.current-value,
+                    Button { text: root.editing-trade-id == 0 ? "Log trade" : "Save changes"; clicked => {
+                        if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
                             buy-date.text, sell-date.text, quantity.text, buy-price.text,
                             sell-price.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, other-costs.text,
-                            risk.text, root.selected-product);
+                            risk.text, root.selected-product)
+                        {
+                            root.editing-trade-id = 0;
+                            trade-side.current-value = "Long";
+                            buy-date.text = "";
+                            sell-date.text = "";
+                            quantity.text = "1";
+                            buy-price.text = "0";
+                            sell-price.text = "0";
+                            commission-buy.text = "0";
+                            tax-buy.text = "0";
+                            commission-sell.text = "0";
+                            tax-sell.text = "0";
+                            other-costs.text = "0";
+                            risk.text = "0";
+                        }
                     } 
                 }
-                Text { text: "Journal"; color: root.primary; font-size: 17px; font-weight: 600; }
+                HorizontalBox {
+                    Text { text: "Journal"; color: root.primary; font-size: 17px; font-weight: 600; }
+                    Rectangle { horizontal-stretch: 1; }
+                    Text { text: "Select a row to edit or complete a trade"; color: root.secondary; }
+                }
                 Rectangle { height: 1px; background: root.divider; }
                 HorizontalBox { spacing: 12px;
                     Text { text: "ID"; width: 45px; color: root.muted; }
@@ -208,7 +260,23 @@ export component AppWindow inherits Window {
                 }
                 ScrollView { vertical-stretch: 1;
                     VerticalBox { spacing: 3px;
-                        for trade in root.trades: Rectangle { height: 40px; background: root.surface; border-radius: 4px;
+                        for trade in root.trades: Rectangle { height: 40px; background: root.editing-trade-id == trade.id ? root.divider : root.surface; border-radius: 4px;
+                            TouchArea { clicked => {
+                                root.editing-trade-id = trade.id;
+                                trade-product.current-value = trade.product;
+                                trade-side.current-value = trade.side;
+                                buy-date.text = trade.buy-date;
+                                sell-date.text = trade.sell-date;
+                                quantity.text = trade.edit-quantity;
+                                buy-price.text = trade.buy-price;
+                                sell-price.text = trade.sell-price;
+                                commission-buy.text = trade.commission-buy;
+                                tax-buy.text = trade.tax-buy;
+                                commission-sell.text = trade.commission-sell;
+                                tax-sell.text = trade.tax-sell;
+                                other-costs.text = trade.other-costs;
+                                risk.text = trade.initial-risk;
+                            } }
                             HorizontalBox { padding: 9px; spacing: 12px;
                                 Text { text: "#" + trade.id; width: 45px; color: root.muted; }
                                 Text { text: trade.product; width: 170px; color: root.primary; font-weight: 600; }
