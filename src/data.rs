@@ -50,8 +50,10 @@ pub struct NewTrade {
     pub quantity: f64,
     pub buy_price: f64,
     pub sell_price: f64,
-    pub commission: f64,
-    pub tax: f64,
+    pub commission_buy: f64,
+    pub tax_buy: f64,
+    pub commission_sell: f64,
+    pub tax_sell: f64,
     pub other_costs: f64,
     pub initial_risk: f64,
 }
@@ -264,8 +266,8 @@ impl Store {
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
-                "INSERT INTO t_trade_cost(commission, tax, other) VALUES (?1, ?2, ?3)",
-                params![trade.commission, trade.tax, trade.other_costs],
+                "INSERT INTO t_trade_cost(commission_buy, tax_buy, commission_sell, tax_sell, other) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![trade.commission_buy, trade.tax_buy, trade.commission_sell, trade.tax_sell, trade.other_costs],
             )
             .map_err(db_error)?;
         let cost_id = transaction.last_insert_rowid();
@@ -273,7 +275,7 @@ impl Store {
             "INSERT INTO t_trade_calculated(risk_initial, profit_loss, profit_loss_total, r_multiple)
              VALUES (?1, ?2, ?3, ?4)",
             params![trade.initial_risk, profit_loss,
-                    profit_loss.map(|pl| pl - trade.commission - trade.tax - trade.other_costs),
+                    profit_loss.map(|pl| pl - trade.commission_buy - trade.tax_buy - trade.commission_sell - trade.tax_sell - trade.other_costs),
                     r_multiple]
         ).map_err(db_error)?;
         let calculated_id = transaction.last_insert_rowid();
@@ -310,7 +312,7 @@ impl Store {
         transaction.execute(
             "UPDATE t_trade_calculated SET
                 profit_loss_total = profit_loss - (
-                    SELECT commission + tax + other FROM t_trade_cost
+                    SELECT commission_buy + tax_buy + commission_sell + tax_sell + other FROM t_trade_cost
                     WHERE trade_cost_id = (SELECT trade_cost_id FROM t_trade WHERE trade_calculated_id = ?1)
                 ) - (
                     SELECT COALESCE(SUM(value), 0) FROM t_financing
@@ -361,8 +363,10 @@ mod tests {
                 quantity: 2.0,
                 buy_price: 10.0,
                 sell_price: 12.0,
-                commission: 0.5,
-                tax: 0.25,
+                commission_buy: 0.5,
+                tax_buy: 0.25,
+                commission_sell: 1.5,
+                tax_sell: 0.35,
                 other_costs: 0.25,
                 initial_risk: 2.0,
             })

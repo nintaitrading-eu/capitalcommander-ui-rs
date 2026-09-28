@@ -53,8 +53,10 @@ fn main() -> Result<(), slint::PlatformError> {
               quantity,
               buy_price,
               sell_price,
-              commission,
-              tax,
+              commission_buy,
+              tax_buy,
+              commission_sell,
+              tax_sell,
               other_costs,
               risk,
               filter| {
@@ -78,8 +80,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     } else {
                         nonnegative(&sell_price, "Sell price")?
                     };
-                    let commission = nonnegative(&commission, "Commission")?;
-                    let tax = nonnegative(&tax, "Tax")?;
+                    let commission_buy = nonnegative(&commission_buy, "Commission buy")?;
+                    let tax_buy = nonnegative(&tax_buy, "Tax buy")?;
+                    let commission_sell = nonnegative(&commission_sell, "Commission sell")?;
+                    let tax_sell = nonnegative(&tax_sell, "Tax sell")?;
                     let other_costs = nonnegative(&other_costs, "Other costs")?;
                     let risk = nonnegative(&risk, "Initial risk")?;
                     let is_long = side == "Long";
@@ -95,8 +99,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         buy_price,
                         sell_price,
                         quantity,
-                        commission,
-                        tax,
+                        commission_buy,
+                        tax_buy,
+                        commission_sell,
+                        tax_sell,
                         other_costs,
                         initial_risk: risk,
                     })?;

@@ -1,6 +1,3 @@
--- Adapted from capitalcommander-api-rs Diesel migrations on the develop branch.
--- SQLite keeps the product/reference, trade cost, calculated trade, and trade
--- relationships; financing is a new trade-linked table for this application.
 CREATE TABLE t_product_type (
     product_type_id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -29,20 +26,6 @@ CREATE TABLE t_market (
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
-CREATE TABLE t_product_tick_info (
-    product_tick_info_id INTEGER PRIMARY KEY,
-    description TEXT NOT NULL,
-    tick REAL NOT NULL CHECK (tick > 0),
-    tick_value REAL NOT NULL CHECK (tick_value > 0),
-    order_min REAL NOT NULL CHECK (order_min > 0),
-    order_max REAL NOT NULL CHECK (order_max >= order_min),
-    margin_day_proc REAL NOT NULL CHECK (margin_day_proc >= 0),
-    margin_night_proc REAL NOT NULL CHECK (margin_night_proc >= 0),
-    is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
-    date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
-
 CREATE TABLE t_product (
     product_id INTEGER PRIMARY KEY,
     name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK (length(trim(name)) > 0),
@@ -50,7 +33,8 @@ CREATE TABLE t_product (
     product_type_id INTEGER NOT NULL REFERENCES t_product_type(product_type_id),
     currency_id INTEGER NOT NULL REFERENCES t_currency(currency_id),
     market_id INTEGER NOT NULL REFERENCES t_market(market_id),
-    product_tick_info_id INTEGER REFERENCES t_product_tick_info(product_tick_info_id),
+    tick REAL NOT NULL CHECK (tick > 0),
+    tick_value REAL NOT NULL CHECK (tick_value > 0),
     is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -58,10 +42,11 @@ CREATE TABLE t_product (
 
 CREATE TABLE t_trade_cost (
     trade_cost_id INTEGER PRIMARY KEY,
-    commission REAL NOT NULL DEFAULT 0 CHECK (commission >= 0),
-    tax REAL NOT NULL DEFAULT 0 CHECK (tax >= 0),
+    commission_buy REAL NOT NULL DEFAULT 0 CHECK (commission_buy >= 0),
+    tax_buy REAL NOT NULL DEFAULT 0 CHECK (tax_buy >= 0),
+    commission_sell REAL NOT NULL DEFAULT 0 CHECK (commission_sell >= 0),
+    tax_sell REAL NOT NULL DEFAULT 0 CHECK (tax_sell >= 0),
     other REAL NOT NULL DEFAULT 0 CHECK (other >= 0),
-    is_manually_added INTEGER NOT NULL DEFAULT 1 CHECK (is_manually_added IN (0, 1)),
     is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -115,9 +100,12 @@ CREATE TABLE t_financing (
 
 CREATE INDEX idx_financing_trade ON t_financing(trade_id, date);
 
-INSERT INTO t_product_type(name, description) VALUES ('cfd', 'Contracts for difference');
+INSERT INTO t_product_type(name, description) VALUES
+    ('cfd', 'Contracts for difference');
 INSERT INTO t_currency(code, description) VALUES
-    ('EUR', 'Euro'), ('USD', 'United States Dollar'), ('GBP', 'British Pound');
+    ('EUR', 'Euro'),
+    ('USD', 'United States Dollar'),
+    ('GBP', 'British Pound');
 INSERT INTO t_market(code, name, country) VALUES
     ('cfd other non-share', 'CFD - other non-share', ''),
     ('cfd .gold', 'CFD - World Spot Gold', 'US'),
@@ -125,14 +113,14 @@ INSERT INTO t_market(code, name, country) VALUES
     ('cfd oil', 'CFD - Brent and WTI oil', 'US');
 
 -- Starter catalog from the API product seed, with trailing spaces normalized.
-INSERT INTO t_product(name, description, product_type_id, currency_id, market_id) VALUES
-    ('.MGOLD.cfd', 'MINI Spot Gold, US Dollar', 1, 2, 2),
-    ('.GOLD.cfd', 'Spot Gold, US Dollar', 1, 2, 2),
-    ('.MSILVER.cfd', 'Spot Mini Silver, US Dollar/100', 1, 2, 3),
-    ('.SILVER.cfd', 'Spot Silver, US Dollar/100', 1, 2, 3),
-    ('.BRENT.cfd', 'SPOT Brent Crude Oil, US Dollar/100', 1, 2, 4),
-    ('.WTI.cfd', 'SPOT WTI Light Crude Oil, US Dollar', 1, 2, 4),
-    ('.N25.cfd', 'Netherlands 25 cash, Euro', 1, 1, 1),
-    ('.DE30.cfd', 'Germany 30 cash, Euro', 1, 1, 1),
-    ('.ES35.cfd', 'Spain 35 cash, Euro', 1, 1, 1),
-    ('.F40.cfd', 'France 40 cash, Euro', 1, 1, 1);
+INSERT INTO t_product(name, description, product_type_id, currency_id, market_id, tick, tick_value) VALUES
+    ('.MGOLD.cfd', 'MINI Spot Gold, US Dollar', 1, 2, 2, 1.0, 1.0),
+    ('.GOLD.cfd', 'Spot Gold, US Dollar', 1, 2, 2, 1.0, 1.0),
+    ('.MSILVER.cfd', 'Spot Mini Silver, US Dollar/100', 1, 2, 3, 1.0, 1.0),
+    ('.SILVER.cfd', 'Spot Silver, US Dollar/100', 1, 2, 3, 1.0, 1.0),
+    ('.BRENT.cfd', 'SPOT Brent Crude Oil, US Dollar/100', 1, 2, 4, 1.0, 1.0),
+    ('.WTI.cfd', 'SPOT WTI Light Crude Oil, US Dollar', 1, 2, 4, 1.0, 1.0),
+    ('.N25.cfd', 'Netherlands 25 cash, Euro', 1, 1, 1, 1.0, 1.0),
+    ('.DE30.cfd', 'Germany 30 cash, Euro', 1, 1, 1, 1.0, 1.0),
+    ('.ES35.cfd', 'Spain 35 cash, Euro', 1, 1, 1, 1.0, 1.0),
+    ('.F40.cfd', 'France 40 cash, Euro', 1, 1, 1, 1.0, 1.0);

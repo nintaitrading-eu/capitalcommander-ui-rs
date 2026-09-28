@@ -56,7 +56,7 @@ export component AppWindow inherits Window {
     in-out property <string> financing-total: "—";
 
     callback filter-product(string);
-    callback save-trade(string, string, string, string, string, string, string, string, string, string, string, string);
+    callback save-trade(string, string, string, string, string, string, string, string, string, string, string, string, string, string);
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
     callback quit();
@@ -142,7 +142,7 @@ export component AppWindow inherits Window {
             }
             if root.page == "Journal": VerticalBox {
                 spacing: 9px;
-                Text { text: "Log CFD trade"; color: root.accent; font-size: 17px; font-weight: 600; }
+                Text { text: "Log trade"; color: root.accent; font-size: 17px; font-weight: 600; }
                 HorizontalBox {
                     spacing: 8px;
                     VerticalBox { Text { text: "Product name"; color: root.secondary; }
@@ -169,11 +169,17 @@ export component AppWindow inherits Window {
                     VerticalBox { Text { text: "Sell price"; color: root.secondary; }
                         sell-price := LineEdit { text: "0"; }
                     }
-                    VerticalBox { Text { text: "Commission"; color: root.secondary; }
-                        commission := LineEdit { text: "0"; }
+                    VerticalBox { Text { text: "Commission buy"; color: root.secondary; }
+                        commission-buy := LineEdit { text: "0"; }
                     }
-                    VerticalBox { Text { text: "Tax"; color: root.secondary; }
-                        tax := LineEdit { text: "0"; }
+                    VerticalBox { Text { text: "Tax buy"; color: root.secondary; }
+                        tax-buy := LineEdit { text: "0"; }
+                    }
+                    VerticalBox { Text { text: "Commission sell"; color: root.secondary; }
+                        commission-sell := LineEdit { text: "0"; }
+                    }
+                    VerticalBox { Text { text: "Tax sell"; color: root.secondary; }
+                        tax-sell := LineEdit { text: "0"; }
                     }
                     VerticalBox { Text { text: "Other costs"; color: root.secondary; }
                         other-costs := LineEdit { text: "0"; }
@@ -181,13 +187,13 @@ export component AppWindow inherits Window {
                     VerticalBox { Text { text: "Initial risk"; color: root.secondary; }
                         risk := LineEdit { text: "0"; }
                     }
-                    Rectangle { horizontal-stretch: 1; }
+                    Rectangle { horizontal-stretch: 1; } }
                     Button { text: "Log trade"; clicked => {
                         root.save-trade(trade-product.current-value, trade-side.current-value,
                             buy-date.text, sell-date.text, quantity.text, buy-price.text,
-                            sell-price.text, commission.text, tax.text, other-costs.text,
+                            sell-price.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, other-costs.text,
                             risk.text, root.selected-product);
-                    } }
+                    } 
                 }
                 Text { text: "Journal"; color: root.primary; font-size: 17px; font-weight: 600; }
                 Rectangle { height: 1px; background: root.divider; }
