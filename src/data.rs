@@ -3,7 +3,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
-pub struct Product {
+pub struct Product
+{
     pub name: String,
     pub description: String,
     pub currency: String,
@@ -11,7 +12,8 @@ pub struct Product {
 }
 
 #[derive(Clone, Debug)]
-pub struct Trade {
+pub struct Trade
+{
     pub id: i64,
     pub product: String,
     pub buy_date: String,
@@ -29,8 +31,10 @@ pub struct Trade {
     pub profit_loss: Option<f64>,
 }
 
-impl Trade {
-    pub fn r_multiple(&self) -> Option<f64> {
+impl Trade
+{
+    pub fn r_multiple(&self) -> Option<f64>
+    {
         self.profit_loss
             .filter(|_| self.initial_risk > 0.0)
             .map(|pl| calculate_r_multiple(pl, self.initial_risk))
@@ -38,7 +42,8 @@ impl Trade {
 }
 
 #[derive(Clone, Debug)]
-pub struct Financing {
+pub struct Financing
+{
     pub id: i64,
     pub trade_id: i64,
     pub date: String,
@@ -50,7 +55,8 @@ pub struct Financing {
     pub note: String,
 }
 
-pub struct NewTrade {
+pub struct NewTrade
+{
     pub product: String,
     pub buy_date: String,
     pub sell_date: Option<String>,
@@ -66,7 +72,8 @@ pub struct NewTrade {
     pub initial_risk: f64,
 }
 
-pub struct NewFinancing {
+pub struct NewFinancing
+{
     pub trade_id: i64,
     pub date: String,
     pub quantity: f64,
@@ -78,19 +85,23 @@ pub struct NewFinancing {
     pub note: String,
 }
 
-pub struct Journal {
+pub struct Journal
+{
     pub products: Vec<Product>,
     pub trades: Vec<Trade>,
     pub financing: Vec<Financing>,
     pub pool_value: Option<f64>,
 }
 
-pub struct Store {
+pub struct Store
+{
     pub(crate) connection: Connection,
 }
 
-impl Store {
-    pub fn open(path: &Path) -> Result<Self, String> {
+impl Store
+{
+    pub fn open(path: &Path) -> Result<Self, String>
+    {
         let mut connection = Connection::open(path).map_err(db_error)?;
         connection
             .pragma_update(None, "foreign_keys", "ON")
@@ -98,8 +109,10 @@ impl Store {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .map_err(db_error)?;
-        match version {
-            0 => {
+        match version
+        {
+            0 =>
+            {
                 let transaction = connection.transaction().map_err(db_error)?;
                 transaction
                     .execute_batch(include_str!("../migrations/0001_initial.sql"))
@@ -109,13 +122,15 @@ impl Store {
                     .map_err(db_error)?;
                 transaction.commit().map_err(db_error)?;
             }
-            1 => {}
+            1 =>
+            {}
             other => return Err(format!("Unsupported database schema version {other}")),
         }
         Ok(Self { connection })
     }
 
-    pub fn load(&self) -> Result<Journal, String> {
+    pub fn load(&self) -> Result<Journal, String>
+    {
         let pool_value = self
             .connection
             .query_row(
@@ -145,7 +160,8 @@ impl Store {
                 })
             })
             .map_err(db_error)?;
-        for row in rows {
+        for row in rows
+        {
             products.push(row.map_err(db_error)?);
         }
 
@@ -184,7 +200,8 @@ impl Store {
                 })
             })
             .map_err(db_error)?;
-        for row in rows {
+        for row in rows
+        {
             trades.push(row.map_err(db_error)?);
         }
 
@@ -213,7 +230,8 @@ impl Store {
                 })
             })
             .map_err(db_error)?;
-        for row in rows {
+        for row in rows
+        {
             financing.push(row.map_err(db_error)?);
         }
         Ok(Journal {
@@ -230,9 +248,11 @@ impl Store {
         description: &str,
         currency: &str,
         market: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), String>
+    {
         let name = name.trim();
-        if name.is_empty() {
+        if name.is_empty()
+        {
             return Err("Product name is required".into());
         }
         let currency_id: i64 = self
@@ -265,7 +285,8 @@ impl Store {
         Ok(())
     }
 
-    pub fn add_trade(&mut self, trade: NewTrade) -> Result<(), String> {
+    pub fn add_trade(&mut self, trade: NewTrade) -> Result<(), String>
+    {
         let product_id: i64 = self
             .connection
             .query_row(
@@ -303,7 +324,8 @@ impl Store {
         Ok(())
     }
 
-    pub fn update_trade(&mut self, id: i64, trade: NewTrade) -> Result<(), String> {
+    pub fn update_trade(&mut self, id: i64, trade: NewTrade) -> Result<(), String>
+    {
         let product_id: i64 = self
             .connection
             .query_row(
@@ -353,9 +375,12 @@ impl Store {
                     trade.sell_date,
                     trade.is_long,
                     trade.quantity,
-                    if profit_loss.is_some() {
+                    if profit_loss.is_some()
+                    {
                         trade.quantity
-                    } else {
+                    }
+                    else
+                    {
                         0.0
                     },
                     trade.buy_price,
@@ -383,7 +408,8 @@ impl Store {
         Ok(())
     }
 
-    pub fn add_financing(&mut self, entry: NewFinancing) -> Result<(), String> {
+    pub fn add_financing(&mut self, entry: NewFinancing) -> Result<(), String>
+    {
         let (
             calculated_id,
             is_long,
@@ -436,7 +462,8 @@ impl Store {
             [entry.trade_id],
             |row| row.get(0),
         ).map_err(db_error)?;
-        let profit_loss_total = if is_closed {
+        let profit_loss_total = if is_closed
+        {
             Some(net_profit_loss(
                 is_long,
                 quantity,
@@ -449,7 +476,9 @@ impl Store {
                 other_costs,
                 financing_total,
             )?)
-        } else {
+        }
+        else
+        {
             None
         };
         transaction
@@ -468,12 +497,14 @@ impl Store {
 fn trade_calculations(
     trade: &NewTrade,
     financing_total: f64,
-) -> Result<(Option<f64>, Option<f64>, Option<f64>), String> {
+) -> Result<(Option<f64>, Option<f64>, Option<f64>), String>
+{
     let profit_loss = trade.sell_date.as_ref().map(|_| {
         let (entry, exit) = trade_prices(trade.is_long, trade.buy_price, trade.sell_price);
         calculate_profit_loss(entry * trade.quantity, 1, exit * trade.quantity, 1)
     });
-    if profit_loss.is_some_and(|value| !value.is_finite()) {
+    if profit_loss.is_some_and(|value| !value.is_finite())
+    {
         return Err("Calculated P/L is too large".into());
     }
     let profit_loss_total = trade
@@ -497,16 +528,21 @@ fn trade_calculations(
     let r_multiple = profit_loss
         .filter(|_| trade.initial_risk > 0.0)
         .map(|pl| calculate_r_multiple(pl, trade.initial_risk));
-    if r_multiple.is_some_and(|value| !value.is_finite()) {
+    if r_multiple.is_some_and(|value| !value.is_finite())
+    {
         return Err("Calculated R is too large".into());
     }
     Ok((profit_loss, profit_loss_total, r_multiple))
 }
 
-fn trade_prices(is_long: bool, buy_price: f64, sell_price: f64) -> (f64, f64) {
-    if is_long {
+fn trade_prices(is_long: bool, buy_price: f64, sell_price: f64) -> (f64, f64)
+{
+    if is_long
+    {
         (buy_price, sell_price)
-    } else {
+    }
+    else
+    {
         (sell_price, buy_price)
     }
 }
@@ -523,7 +559,8 @@ fn net_profit_loss(
     tax_sell: f64,
     other_costs: f64,
     financing_total: f64,
-) -> Result<f64, String> {
+) -> Result<f64, String>
+{
     let (entry, exit) = trade_prices(is_long, buy_price, sell_price);
     // The library accepts integer shares and percentage taxes. Use one share at the
     // full position value, and pass the database's absolute taxes as fixed costs.
@@ -537,20 +574,24 @@ fn net_profit_loss(
         0.0,
         commission_sell + tax_sell + other_costs + financing_total,
     );
-    if !result.is_finite() {
+    if !result.is_finite()
+    {
         return Err("Calculated total P/L is too large".into());
     }
     Ok(result)
 }
 
-fn db_error(error: rusqlite::Error) -> String {
-    match error {
+fn db_error(error: rusqlite::Error) -> String
+{
+    match error
+    {
         rusqlite::Error::SqliteFailure(_, Some(message)) => format!("Database: {message}"),
         error => format!("Database: {error}"),
     }
 }
 
-pub fn database_path() -> PathBuf {
+pub fn database_path() -> PathBuf
+{
     std::env::args_os()
         .nth(1)
         .map(PathBuf::from)

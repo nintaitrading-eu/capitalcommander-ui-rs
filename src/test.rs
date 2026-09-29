@@ -3,7 +3,8 @@ use crate::check_date;
 use std::path::Path;
 
 #[test]
-fn valid_r_multiple_requires_positive_risk() {
+fn valid_r_multiple_requires_positive_risk()
+{
     let mut trade = Trade {
         id: 1,
         product: "A".into(),
@@ -27,13 +28,15 @@ fn valid_r_multiple_requires_positive_risk() {
 }
 
 #[test]
-fn rejects_invalid_calendar_date() {
+fn rejects_invalid_calendar_date()
+{
     assert!(check_date("2026-02-29", "Date", false).is_err());
     assert!(check_date("2024-02-29", "Date", false).is_ok());
 }
 
 #[test]
-fn loads_latest_pool_value() {
+fn loads_latest_pool_value()
+{
     let store = Store::open(Path::new(":memory:")).unwrap();
     assert_eq!(store.load().unwrap().pool_value, Some(75000.0));
 
@@ -48,7 +51,8 @@ fn loads_latest_pool_value() {
 }
 
 #[test]
-fn persists_relations_and_rejects_unknown_trade() {
+fn persists_relations_and_rejects_unknown_trade()
+{
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let initial = store.load().unwrap();
     assert!(initial.trades.is_empty());
@@ -124,7 +128,8 @@ fn persists_relations_and_rejects_unknown_trade() {
 }
 
 #[test]
-fn closes_an_existing_trade_without_changing_its_id_or_financing() {
+fn closes_an_existing_trade_without_changing_its_id_or_financing()
+{
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let open_trade = NewTrade {
         product: ".MGOLD.cfd".into(),
@@ -198,7 +203,8 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing() {
 }
 
 #[test]
-fn calculates_fractional_short_trade_with_absolute_costs() {
+fn calculates_fractional_short_trade_with_absolute_costs()
+{
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let trade = NewTrade {
         product: ".MGOLD.cfd".into(),
@@ -255,7 +261,8 @@ fn calculates_fractional_short_trade_with_absolute_costs() {
 }
 
 #[test]
-fn reopens_a_file_database_without_reseeding() {
+fn reopens_a_file_database_without_reseeding()
+{
     let file = std::env::temp_dir().join(format!(
         "capitalcommander-test-{}-{}.sqlite3",
         std::process::id(),

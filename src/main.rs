@@ -7,11 +7,14 @@ use std::rc::Rc;
 
 slint::include_modules!();
 
-fn main() -> Result<(), slint::PlatformError> {
+fn main() -> Result<(), slint::PlatformError>
+{
     let database_path = data::database_path();
-    let store = match Store::open(&database_path) {
+    let store = match Store::open(&database_path)
+    {
         Ok(store) => store,
-        Err(error) => {
+        Err(error) =>
+        {
             eprintln!("{error}");
             std::process::exit(1);
         }
@@ -37,7 +40,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = window.as_weak();
     let model = journal.clone();
     window.on_filter_product(move |product| {
-        if let Some(window) = weak.upgrade() {
+        if let Some(window) = weak.upgrade()
+        {
             refresh(&window, &model.borrow(), &product);
         }
     });
@@ -61,7 +65,8 @@ fn main() -> Result<(), slint::PlatformError> {
               other_costs,
               risk,
               filter| {
-            if let Some(window) = weak.upgrade() {
+            if let Some(window) = weak.upgrade()
+            {
                 let result = (|| -> Result<(), String> {
                     let product = product.trim();
                     if !model
@@ -74,7 +79,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     check_date(&buy_date, "Buy date", false)?;
                     check_date(&sell_date, "Sell date", true)?;
-                    if !sell_date.is_empty() && sell_date < buy_date {
+                    if !sell_date.is_empty() && sell_date < buy_date
+                    {
                         return Err("Sell date must be on or after buy date".into());
                     }
                     let quantity = positive(&quantity, "Quantity")?;
@@ -90,9 +96,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     let trade = NewTrade {
                         product: product.into(),
                         buy_date: buy_date.into(),
-                        sell_date: if sell_date.is_empty() {
+                        sell_date: if sell_date.is_empty()
+                        {
                             None
-                        } else {
+                        }
+                        else
+                        {
                             Some(sell_date.into())
                         },
                         is_long,
@@ -106,33 +115,44 @@ fn main() -> Result<(), slint::PlatformError> {
                         other_costs,
                         initial_risk: risk,
                     };
-                    if trade_id == 0 {
+                    if trade_id == 0
+                    {
                         database.borrow_mut().add_trade(trade)?;
-                    } else {
+                    }
+                    else
+                    {
                         database.borrow_mut().update_trade(trade_id as i64, trade)?;
                     }
                     *model.borrow_mut() = database.borrow().load()?;
                     Ok(())
                 })();
-                match result {
-                    Ok(()) => {
+                match result
+                {
+                    Ok(()) =>
+                    {
                         refresh(&window, &model.borrow(), &filter);
                         window.set_status(
-                            if trade_id == 0 {
+                            if trade_id == 0
+                            {
                                 "Trade saved"
-                            } else {
+                            }
+                            else
+                            {
                                 "Trade updated"
                             }
                             .into(),
                         );
                         true
                     }
-                    Err(error) => {
+                    Err(error) =>
+                    {
                         window.set_status(error.into());
                         false
                     }
                 }
-            } else {
+            }
+            else
+            {
                 false
             }
         },
@@ -143,7 +163,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let database = store.clone();
     window.on_save_financing(
         move |trade_id, date, quantity, price, rate, exchange_rate, days, value, note| {
-            if let Some(window) = weak.upgrade() {
+            if let Some(window) = weak.upgrade()
+            {
                 let result = (|| -> Result<(), String> {
                     let trade_id: i64 = trade_id
                         .trim()
@@ -158,17 +179,22 @@ fn main() -> Result<(), slint::PlatformError> {
                         .trim()
                         .parse()
                         .map_err(|_| "Days must be a positive integer")?;
-                    if days == 0 {
+                    if days == 0
+                    {
                         return Err("Days must be greater than zero".into());
                     }
                     let calculated =
                         quantity * price * rate / 100.0 * exchange_rate * days as f64 / 360.0;
-                    let value = if value.trim().is_empty() {
+                    let value = if value.trim().is_empty()
+                    {
                         calculated
-                    } else {
+                    }
+                    else
+                    {
                         nonnegative(&value, "Value")?
                     };
-                    if !value.is_finite() {
+                    if !value.is_finite()
+                    {
                         return Err("Calculated value is too large".into());
                     }
                     database.borrow_mut().add_financing(NewFinancing {
@@ -185,8 +211,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     *model.borrow_mut() = database.borrow().load()?;
                     Ok(())
                 })();
-                match result {
-                    Ok(()) => {
+                match result
+                {
+                    Ok(()) =>
+                    {
                         refresh(&window, &model.borrow(), &window.get_selected_product());
                         window.set_status("Financing entry saved".into());
                     }
@@ -200,7 +228,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let model = journal.clone();
     let database = store.clone();
     window.on_save_product(move |name, description, currency, market| {
-        if let Some(window) = weak.upgrade() {
+        if let Some(window) = weak.upgrade()
+        {
             let result = (|| -> Result<(), String> {
                 database
                     .borrow_mut()
@@ -208,8 +237,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 *model.borrow_mut() = database.borrow().load()?;
                 Ok(())
             })();
-            match result {
-                Ok(()) => {
+            match result
+            {
+                Ok(()) =>
+                {
                     set_products(&window, &model.borrow());
                     refresh(&window, &model.borrow(), &window.get_selected_product());
                     window.set_status("Product saved".into());
@@ -226,7 +257,8 @@ fn main() -> Result<(), slint::PlatformError> {
     window.run()
 }
 
-fn set_products(window: &AppWindow, journal: &Journal) {
+fn set_products(window: &AppWindow, journal: &Journal)
+{
     let products: Vec<_> = journal.products.iter().map(|p| p.name.clone()).collect();
     let mut filters = vec!["All products".to_string()];
     filters.extend(products.iter().cloned());
@@ -245,13 +277,15 @@ fn set_products(window: &AppWindow, journal: &Journal) {
     window.set_product_details(ModelRc::from(Rc::new(VecModel::from(details))));
 }
 
-fn strings(values: Vec<String>) -> ModelRc<SharedString> {
+fn strings(values: Vec<String>) -> ModelRc<SharedString>
+{
     ModelRc::from(Rc::new(VecModel::from(
         values.into_iter().map(Into::into).collect::<Vec<_>>(),
     )))
 }
 
-fn refresh(window: &AppWindow, journal: &Journal, product: &str) {
+fn refresh(window: &AppWindow, journal: &Journal, product: &str)
+{
     window.set_current_pool(
         journal
             .pool_value
@@ -275,20 +309,30 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str) {
         .collect();
     let total_pl: f64 = closed.iter().filter_map(|trade| trade.profit_loss).sum();
     window.set_trade_count(closed.len().to_string().into());
-    window.set_win_rate(if closed.is_empty() {
-        "—".into()
-    } else {
-        format!("{:.1}%", 100.0 * wins as f64 / closed.len() as f64).into()
-    });
-    window.set_expectancy(if r_values.is_empty() {
-        "—".into()
-    } else {
-        format!(
-            "{:.3} R",
-            r_values.iter().sum::<f64>() / r_values.len() as f64
-        )
-        .into()
-    });
+    window.set_win_rate(
+        if closed.is_empty()
+        {
+            "—".into()
+        }
+        else
+        {
+            format!("{:.1}%", 100.0 * wins as f64 / closed.len() as f64).into()
+        },
+    );
+    window.set_expectancy(
+        if r_values.is_empty()
+        {
+            "—".into()
+        }
+        else
+        {
+            format!(
+                "{:.3} R",
+                r_values.iter().sum::<f64>() / r_values.len() as f64
+            )
+            .into()
+        },
+    );
     window.set_total_pl(format!("{total_pl:+.2}").into());
     let rows: Vec<_> = selected
         .iter()
@@ -300,9 +344,12 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str) {
             dates: format!(
                 "{} → {}",
                 trade.buy_date,
-                if trade.sell_date.is_empty() {
+                if trade.sell_date.is_empty()
+                {
                     "open"
-                } else {
+                }
+                else
+                {
                     &trade.sell_date
                 }
             )
@@ -367,35 +414,45 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str) {
     window.set_financing(ModelRc::from(Rc::new(VecModel::from(finance_rows))));
 }
 
-fn format_number(value: f64) -> String {
-    if value.fract() == 0.0 {
+fn format_number(value: f64) -> String
+{
+    if value.fract() == 0.0
+    {
         format!("{value:.0}")
-    } else {
+    }
+    else
+    {
         format!("{value:.2}")
     }
 }
 
-fn nonnegative(input: &str, label: &str) -> Result<f64, String> {
+fn nonnegative(input: &str, label: &str) -> Result<f64, String>
+{
     let value: f64 = input
         .trim()
         .parse()
         .map_err(|_| format!("{label} must be a number"))?;
-    if !value.is_finite() || value < 0.0 {
+    if !value.is_finite() || value < 0.0
+    {
         return Err(format!("{label} must be a nonnegative finite number"));
     }
     Ok(value)
 }
 
-fn positive(input: &str, label: &str) -> Result<f64, String> {
+fn positive(input: &str, label: &str) -> Result<f64, String>
+{
     let value = nonnegative(input, label)?;
-    if value == 0.0 {
+    if value == 0.0
+    {
         return Err(format!("{label} must be greater than zero"));
     }
     Ok(value)
 }
 
-fn check_date(input: &str, label: &str, optional: bool) -> Result<(), String> {
-    if optional && input.is_empty() {
+fn check_date(input: &str, label: &str, optional: bool) -> Result<(), String>
+{
+    if optional && input.is_empty()
+    {
         return Ok(());
     }
     let bytes = input.as_bytes();
@@ -413,14 +470,16 @@ fn check_date(input: &str, label: &str, optional: bool) -> Result<(), String> {
     let month: u8 = input[5..7].parse().unwrap_or(0);
     let day: u8 = input[8..10].parse().unwrap_or(0);
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let max_day = match month {
+    let max_day = match month
+    {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
         2 if leap => 29,
         2 => 28,
         _ => 0,
     };
-    if year == 0 || day == 0 || day > max_day {
+    if year == 0 || day == 0 || day > max_day
+    {
         return Err(format!("{label} is not a valid date"));
     }
     Ok(())
