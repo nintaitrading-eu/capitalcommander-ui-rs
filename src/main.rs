@@ -312,7 +312,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
     window.set_win_rate(
         if closed.is_empty()
         {
-            "—".into()
+            "-".into()
         }
         else
         {
@@ -322,7 +322,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
     window.set_expectancy(
         if r_values.is_empty()
         {
-            "—".into()
+            "-".into()
         }
         else
         {
@@ -339,6 +339,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
         .rev()
         .map(|trade| TradeRow {
             id: trade.id as i32,
+            closed: trade.profit_loss.is_some(),
             product: trade.product.clone().into(),
             side: (if trade.is_long { "Long" } else { "Short" }).into(),
             dates: format!(
@@ -374,7 +375,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
             r: trade
                 .r_multiple()
                 .map(|n| format!("{n:+.2} R"))
-                .unwrap_or_else(|| "—".into())
+                .unwrap_or_else(|| "-".into())
                 .into(),
         })
         .collect();

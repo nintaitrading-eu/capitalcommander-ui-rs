@@ -1,5 +1,5 @@
 use libcalculatorfinance::{calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
@@ -320,6 +320,10 @@ impl Store
                     trade.is_long, trade.quantity, if profit_loss.is_some() { trade.quantity } else { 0.0 },
                     trade.buy_price, trade.sell_price]
         ).map_err(db_error)?;
+        if let Some(profit_loss) = profit_loss
+        {
+            record_pool_profit_loss(&transaction, profit_loss)?;
+        }
         transaction.commit().map_err(db_error)?;
         Ok(())
     }
@@ -344,10 +348,11 @@ impl Store
         let (profit_loss, profit_loss_total, r_multiple) =
             trade_calculations(&trade, financing_total)?;
         let (cost_id, calculated_id): (i64, i64) = self.connection.query_row(
-            "SELECT trade_cost_id, trade_calculated_id FROM t_trade WHERE trade_id = ?1 AND is_deleted = 0",
+            "SELECT trade_cost_id, trade_calculated_id FROM t_trade
+             WHERE trade_id = ?1 AND is_deleted = 0 AND date_sell IS NULL",
             [id],
             |row| Ok((row.get(0)?, row.get(1)?)),
-        ).optional().map_err(db_error)?.ok_or_else(|| format!("Trade #{id} does not exist"))?;
+        ).optional().map_err(db_error)?.ok_or_else(|| format!("Trade #{id} does not exist or is already closed"))?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
@@ -404,6 +409,10 @@ impl Store
                 ],
             )
             .map_err(db_error)?;
+        if let Some(profit_loss) = profit_loss
+        {
+            record_pool_profit_loss(&transaction, profit_loss)?;
+        }
         transaction.commit().map_err(db_error)?;
         Ok(())
     }
@@ -492,6 +501,28 @@ impl Store
         transaction.commit().map_err(db_error)?;
         Ok(())
     }
+}
+
+fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss: f64) -> Result<(), String>
+{
+    let current: f64 = transaction
+        .query_row(
+            "SELECT pool_value FROM t_pool ORDER BY pool_id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(db_error)?
+        .ok_or("No pool balance exists")?;
+    let updated = current + profit_loss;
+    if !updated.is_finite() || updated < 0.0
+    {
+        return Err("Closing this trade would make the pool balance invalid".into());
+    }
+    transaction
+        .execute("INSERT INTO t_pool(pool_value) VALUES (?1)", [updated])
+        .map_err(db_error)?;
+    Ok(())
 }
 
 fn trade_calculations(

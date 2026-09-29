@@ -3,6 +3,7 @@ import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Pal
 export struct TradeRow
 {
     id: int,
+    closed: bool,
     product: string,
     side: string,
     dates: string,
@@ -371,6 +372,7 @@ export component AppWindow inherits Window
                             height: 40px; background: root.editing-trade-id == trade.id ? root.divider : root.surface; border-radius: 4px;
                             TouchArea
                             {
+                                enabled: !trade.closed;
                                 clicked =>
                                 {
                                     root.editing-trade-id = trade.id;

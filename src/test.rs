@@ -79,6 +79,7 @@ fn persists_relations_and_rejects_unknown_trade()
         .unwrap();
     let journal = store.load().unwrap();
     assert_eq!(journal.trades[0].r_multiple(), Some(2.0));
+    assert_eq!(journal.pool_value, Some(75004.0));
     let saved_costs: (f64, f64, f64) = store
         .connection
         .query_row(
@@ -190,6 +191,7 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
     assert_eq!(journal.trades[0].sell_price, 12.0);
     assert_eq!(journal.trades[0].other_costs, 0.4);
     assert_eq!(journal.trades[0].profit_loss, Some(4.0));
+    assert_eq!(journal.pool_value, Some(75004.0));
     assert_eq!(journal.financing.len(), 1);
     let net: f64 = store
         .connection
@@ -200,6 +202,23 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
         )
         .unwrap();
     assert!((net - 1.5).abs() < 1e-10);
+    let closed_trade = NewTrade {
+        product: ".MGOLD.cfd".into(),
+        buy_date: "2026-09-28".into(),
+        sell_date: Some("2026-09-30".into()),
+        is_long: true,
+        quantity: 2.0,
+        buy_price: 10.0,
+        sell_price: 12.0,
+        commission_buy: 0.5,
+        tax_buy: 0.25,
+        commission_sell: 1.0,
+        tax_sell: 0.25,
+        other_costs: 0.4,
+        initial_risk: 2.0,
+    };
+    assert!(store.update_trade(id, closed_trade).is_err());
+    assert_eq!(store.load().unwrap().pool_value, Some(75004.0));
 }
 
 #[test]
@@ -225,6 +244,7 @@ fn calculates_fractional_short_trade_with_absolute_costs()
     let journal = store.load().unwrap();
     assert_eq!(journal.trades[0].profit_loss, Some(3.0));
     assert_eq!(journal.trades[0].r_multiple(), Some(2.0));
+    assert_eq!(journal.pool_value, Some(75003.0));
     let net: f64 = store
         .connection
         .query_row(
@@ -258,6 +278,49 @@ fn calculates_fractional_short_trade_with_absolute_costs()
         )
         .unwrap();
     assert!((net - 1.7).abs() < 1e-10);
+}
+
+#[test]
+fn a_losing_trade_reduces_the_pool_only_when_closed()
+{
+    let mut store = Store::open(Path::new(":memory:")).unwrap();
+    let trade = NewTrade {
+        product: ".MGOLD.cfd".into(),
+        buy_date: "2026-09-28".into(),
+        sell_date: None,
+        is_long: true,
+        quantity: 2.0,
+        buy_price: 12.0,
+        sell_price: 10.0,
+        commission_buy: 0.0,
+        tax_buy: 0.0,
+        commission_sell: 0.0,
+        tax_sell: 0.0,
+        other_costs: 0.0,
+        initial_risk: 2.0,
+    };
+    store.add_trade(trade).unwrap();
+    assert_eq!(store.load().unwrap().pool_value, Some(75000.0));
+    let id = store.load().unwrap().trades[0].id;
+    store.update_trade(id, NewTrade {
+        product: ".MGOLD.cfd".into(),
+        buy_date: "2026-09-28".into(),
+        sell_date: Some("2026-09-29".into()),
+        is_long: true,
+        quantity: 2.0,
+        buy_price: 12.0,
+        sell_price: 10.0,
+        commission_buy: 0.0,
+        tax_buy: 0.0,
+        commission_sell: 0.0,
+        tax_sell: 0.0,
+        other_costs: 0.0,
+        initial_risk: 2.0,
+    }).unwrap();
+    assert_eq!(store.load().unwrap().trades[0].profit_loss, Some(-4.0));
+    assert_eq!(store.load().unwrap().pool_value, Some(74996.0));
+    let count: i64 = store.connection.query_row("SELECT COUNT(*) FROM t_pool", [], |row| row.get(0)).unwrap();
+    assert_eq!(count, 2);
 }
 
 #[test]
