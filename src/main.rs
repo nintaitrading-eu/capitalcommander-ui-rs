@@ -427,36 +427,4 @@ fn check_date(input: &str, label: &str, optional: bool) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn valid_r_multiple_requires_positive_risk() {
-        let mut trade = Trade {
-            id: 1,
-            product: "A".into(),
-            buy_date: "2026-01-01".into(),
-            sell_date: "2026-01-02".into(),
-            is_long: true,
-            quantity: 1.0,
-            buy_price: 1.0,
-            sell_price: 2.0,
-            commission_buy: 0.0,
-            tax_buy: 0.0,
-            commission_sell: 0.0,
-            tax_sell: 0.0,
-            other_costs: 0.0,
-            initial_risk: 10.0,
-            profit_loss: Some(-5.0),
-        };
-        assert_eq!(trade.r_multiple(), Some(-0.5));
-        trade.initial_risk = 0.0;
-        assert_eq!(trade.r_multiple(), None);
-    }
-
-    #[test]
-    fn rejects_invalid_calendar_date() {
-        assert!(check_date("2026-02-29", "Date", false).is_err());
-        assert!(check_date("2024-02-29", "Date", false).is_ok());
-    }
-}
+mod test;
