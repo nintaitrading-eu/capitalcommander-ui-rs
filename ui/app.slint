@@ -13,6 +13,8 @@ export struct TradeRow
     edit-quantity: string,
     buy-price: string,
     sell-price: string,
+    exchange-rate-buy: string,
+    exchange-rate-sell: string,
     commission-buy: string,
     tax-buy: string,
     commission-sell: string,
@@ -84,7 +86,7 @@ export component AppWindow inherits Window
     in-out property <string> financing-total: "—";
 
     callback filter-product(string);
-    callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
+    callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
     callback quit();
@@ -226,6 +228,8 @@ export component AppWindow inherits Window
                             quantity.text = "1";
                             buy-price.text = "0";
                             sell-price.text = "0";
+                            exchange-rate-buy.text = "1";
+                            exchange-rate-sell.text = "1";
                             commission-buy.text = "0";
                             tax-buy.text = "0";
                             commission-sell.text = "0";
@@ -279,6 +283,20 @@ export component AppWindow inherits Window
                     }
                     VerticalBox
                     {
+                        Text { text: "Buy exchange rate (to EUR)"; color: root.secondary; }
+                        exchange-rate-buy := LineEdit { text: "1"; }
+                    }
+                    VerticalBox
+                    {
+                        Text { text: "Sell exchange rate (to EUR)"; color: root.secondary; }
+                        exchange-rate-sell := LineEdit { text: "1"; }
+                    }
+                }
+                HorizontalBox
+                {
+                    spacing: 3px;
+                    VerticalBox
+                    {
                         Text { text: "Commission buy"; color: root.secondary; }
                         commission-buy := LineEdit { text: "0"; }
                     }
@@ -315,7 +333,7 @@ export component AppWindow inherits Window
                     {
                         if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
                             buy-date.text, sell-date.text, quantity.text, buy-price.text,
-                            sell-price.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, other-costs.text,
+                            sell-price.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, other-costs.text,
                             risk.text, root.selected-product)
                         {
                             root.editing-trade-id = 0;
@@ -325,6 +343,8 @@ export component AppWindow inherits Window
                             quantity.text = "1";
                             buy-price.text = "0";
                             sell-price.text = "0";
+                            exchange-rate-buy.text = "1";
+                            exchange-rate-sell.text = "1";
                             commission-buy.text = "0";
                             tax-buy.text = "0";
                             commission-sell.text = "0";
@@ -383,6 +403,8 @@ export component AppWindow inherits Window
                                     quantity.text = trade.edit-quantity;
                                     buy-price.text = trade.buy-price;
                                     sell-price.text = trade.sell-price;
+                                    exchange-rate-buy.text = trade.exchange-rate-buy;
+                                    exchange-rate-sell.text = trade.exchange-rate-sell;
                                     commission-buy.text = trade.commission-buy;
                                     tax-buy.text = trade.tax-buy;
                                     commission-sell.text = trade.commission-sell;
@@ -426,7 +448,7 @@ export component AppWindow inherits Window
             HorizontalBox
             {
                 spacing: 8px;
-                VerticalBox { Text { text: "Exchange rate"; color: root.secondary; } fin-exchange := LineEdit { text: "1"; } }
+                VerticalBox { Text { text: "exchange-rate rate"; color: root.secondary; } fin-exchange-rate := LineEdit { text: "1"; } }
                 VerticalBox { Text { text: "Days"; color: root.secondary; } fin-days := LineEdit { text: "1"; } }
                 VerticalBox { Text { text: "Value"; color: root.secondary; } fin-value := LineEdit { placeholder-text: "Auto"; } }
                 VerticalBox { Text { text: "Note"; color: root.secondary; } fin-note := LineEdit { placeholder-text: "Optional"; } }
@@ -435,7 +457,7 @@ export component AppWindow inherits Window
                 {
                     text: "Log financing"; clicked =>
                     {
-                        root.save-financing(fin-trade.text, fin-date.text, fin-qty.text, fin-price.text, fin-rate.text, fin-exchange.text, fin-days.text, fin-value.text, fin-note.text);
+                        root.save-financing(fin-trade.text, fin-date.text, fin-qty.text, fin-price.text, fin-rate.text, fin-exchange-rate.text, fin-days.text, fin-value.text, fin-note.text);
                     }
                 }
             }

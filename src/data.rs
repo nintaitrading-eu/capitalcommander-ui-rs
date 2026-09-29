@@ -1,4 +1,4 @@
-use libcalculatorfinance::{calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple};
+use libcalculatorfinance::{calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple, convert_from_orig};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 
@@ -22,6 +22,8 @@ pub struct Trade
     pub quantity: f64,
     pub buy_price: f64,
     pub sell_price: f64,
+    pub exchange_rate_buy: f64,
+    pub exchange_rate_sell: f64,
     pub commission_buy: f64,
     pub tax_buy: f64,
     pub commission_sell: f64,
@@ -64,6 +66,8 @@ pub struct NewTrade
     pub quantity: f64,
     pub buy_price: f64,
     pub sell_price: f64,
+    pub exchange_rate_buy: f64,
+    pub exchange_rate_sell: f64,
     pub commission_buy: f64,
     pub tax_buy: f64,
     pub commission_sell: f64,
@@ -118,12 +122,35 @@ impl Store
                     .execute_batch(include_str!("../migrations/0001_initial.sql"))
                     .map_err(db_error)?;
                 transaction
-                    .pragma_update(None, "user_version", 1)
+                    .pragma_update(None, "user_version", 2)
                     .map_err(db_error)?;
                 transaction.commit().map_err(db_error)?;
             }
             1 =>
-            {}
+            {
+                let transaction = connection.transaction().map_err(db_error)?;
+                for column in ["exchange_rate_buy", "exchange_rate_sell"]
+                {
+                    let names: Vec<String> = transaction
+                        .prepare("PRAGMA table_info(t_trade)")
+                        .map_err(db_error)?
+                        .query_map([], |row| row.get::<_, String>(1))
+                        .map_err(db_error)?
+                        .collect::<Result<_, _>>()
+                        .map_err(db_error)?;
+                    if !names.iter().any(|name| name == column)
+                    {
+                        transaction
+                            .execute_batch(&format!(
+                                "ALTER TABLE t_trade ADD COLUMN {column} REAL NOT NULL DEFAULT 1 CHECK ({column} > 0)"
+                            ))
+                            .map_err(db_error)?;
+                    }
+                }
+                transaction.pragma_update(None, "user_version", 2).map_err(db_error)?;
+                transaction.commit().map_err(db_error)?;
+            }
+            2 => {}
             other => return Err(format!("Unsupported database schema version {other}")),
         }
         Ok(Self { connection })
@@ -172,7 +199,8 @@ impl Store
                 "SELECT t.trade_id, p.name, t.date_buy, COALESCE(t.date_sell, ''),
                     t.is_long, t.shares_buy, t.price_buy, t.price_sell,
                     cost.commission_buy, cost.tax_buy, cost.commission_sell,
-                    cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss
+                    cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss,
+                    t.exchange_rate_buy, t.exchange_rate_sell
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
              JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
              JOIN t_trade_calculated calc ON calc.trade_calculated_id = t.trade_calculated_id
@@ -197,6 +225,8 @@ impl Store
                     other_costs: row.get(12)?,
                     initial_risk: row.get(13)?,
                     profit_loss: row.get(14)?,
+                    exchange_rate_buy: row.get(15)?,
+                    exchange_rate_sell: row.get(16)?,
                 })
             })
             .map_err(db_error)?;
@@ -314,11 +344,11 @@ impl Store
         let calculated_id = transaction.last_insert_rowid();
         transaction.execute(
             "INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, date_buy, date_sell,
-                                 is_long, shares_buy, shares_sell, price_buy, price_sell)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                                 is_long, shares_buy, shares_sell, price_buy, price_sell, exchange_rate_buy, exchange_rate_sell)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![calculated_id, product_id, cost_id, trade.buy_date, trade.sell_date,
                     trade.is_long, trade.quantity, if profit_loss.is_some() { trade.quantity } else { 0.0 },
-                    trade.buy_price, trade.sell_price]
+                    trade.buy_price, trade.sell_price, trade.exchange_rate_buy, trade.exchange_rate_sell]
         ).map_err(db_error)?;
         if let Some(profit_loss) = profit_loss
         {
@@ -373,7 +403,8 @@ impl Store
             .execute(
                 "UPDATE t_trade SET product_id = ?1, date_buy = ?2, date_sell = ?3, is_long = ?4,
              shares_buy = ?5, shares_sell = ?6, price_buy = ?7, price_sell = ?8,
-             date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE trade_id = ?9",
+             exchange_rate_buy = ?9, exchange_rate_sell = ?10,
+             date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE trade_id = ?11",
                 params![
                     product_id,
                     trade.buy_date,
@@ -390,6 +421,8 @@ impl Store
                     },
                     trade.buy_price,
                     trade.sell_price,
+                    trade.exchange_rate_buy,
+                    trade.exchange_rate_sell,
                     id
                 ],
             )
@@ -425,18 +458,20 @@ impl Store
             quantity,
             buy_price,
             sell_price,
+            exchange_rate_buy,
+            exchange_rate_sell,
             commission_buy,
             tax_buy,
             commission_sell,
             tax_sell,
             other_costs,
             is_closed,
-        ): (i64, bool, f64, f64, f64, f64, f64, f64, f64, f64, bool) = self
+        ): (i64, bool, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64, bool) = self
             .connection
             .query_row(
                 "SELECT t.trade_calculated_id, t.is_long, t.shares_buy, t.price_buy, t.price_sell,
-                        cost.commission_buy, cost.tax_buy, cost.commission_sell, cost.tax_sell,
-                        cost.other, t.date_sell IS NOT NULL
+                        t.exchange_rate_buy, t.exchange_rate_sell, cost.commission_buy, cost.tax_buy,
+                        cost.commission_sell, cost.tax_sell, cost.other, t.date_sell IS NOT NULL
                  FROM t_trade t JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
                  WHERE t.trade_id = ?1 AND t.is_deleted = 0",
                 [entry.trade_id],
@@ -453,6 +488,8 @@ impl Store
                         row.get(8)?,
                         row.get(9)?,
                         row.get(10)?,
+                        row.get(11)?,
+                        row.get(12)?,
                     ))
                 },
             )
@@ -478,6 +515,8 @@ impl Store
                 quantity,
                 buy_price,
                 sell_price,
+                exchange_rate_buy,
+                exchange_rate_sell,
                 commission_buy,
                 tax_buy,
                 commission_sell,
@@ -531,7 +570,9 @@ fn trade_calculations(
 ) -> Result<(Option<f64>, Option<f64>, Option<f64>), String>
 {
     let profit_loss = trade.sell_date.as_ref().map(|_| {
-        let (entry, exit) = trade_prices(trade.is_long, trade.buy_price, trade.sell_price);
+        let buy_price = convert_from_orig(trade.buy_price, trade.exchange_rate_buy);
+        let sell_price = convert_from_orig(trade.sell_price, trade.exchange_rate_sell);
+        let (entry, exit) = trade_prices(trade.is_long, buy_price, sell_price);
         calculate_profit_loss(entry * trade.quantity, 1, exit * trade.quantity, 1)
     });
     if profit_loss.is_some_and(|value| !value.is_finite())
@@ -547,6 +588,8 @@ fn trade_calculations(
                 trade.quantity,
                 trade.buy_price,
                 trade.sell_price,
+                trade.exchange_rate_buy,
+                trade.exchange_rate_sell,
                 trade.commission_buy,
                 trade.tax_buy,
                 trade.commission_sell,
@@ -584,6 +627,8 @@ fn net_profit_loss(
     quantity: f64,
     buy_price: f64,
     sell_price: f64,
+    exchange_rate_buy: f64,
+    exchange_rate_sell: f64,
     commission_buy: f64,
     tax_buy: f64,
     commission_sell: f64,
@@ -592,6 +637,8 @@ fn net_profit_loss(
     financing_total: f64,
 ) -> Result<f64, String>
 {
+    let buy_price = convert_from_orig(buy_price, exchange_rate_buy);
+    let sell_price = convert_from_orig(sell_price, exchange_rate_sell);
     let (entry, exit) = trade_prices(is_long, buy_price, sell_price);
     // The library accepts integer shares and percentage taxes. Use one share at the
     // full position value, and pass the database's absolute taxes as fixed costs.

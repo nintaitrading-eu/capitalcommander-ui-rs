@@ -14,6 +14,8 @@ fn valid_r_multiple_requires_positive_risk()
         quantity: 1.0,
         buy_price: 1.0,
         sell_price: 2.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
         commission_buy: 0.0,
         tax_buy: 0.0,
         commission_sell: 0.0,
@@ -69,6 +71,8 @@ fn persists_relations_and_rejects_unknown_trade()
             quantity: 2.0,
             buy_price: 10.0,
             sell_price: 12.0,
+            exchange_rate_buy: 1.0,
+            exchange_rate_sell: 1.0,
             commission_buy: 0.5,
             tax_buy: 0.25,
             commission_sell: 1.5,
@@ -140,6 +144,8 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
         quantity: 2.0,
         buy_price: 10.0,
         sell_price: 11.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
         commission_buy: 0.5,
         tax_buy: 0.25,
         commission_sell: 0.0,
@@ -175,6 +181,8 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
                 quantity: 2.0,
                 buy_price: 10.0,
                 sell_price: 12.0,
+                exchange_rate_buy: 1.0,
+                exchange_rate_sell: 1.0,
                 commission_buy: 0.5,
                 tax_buy: 0.25,
                 commission_sell: 1.0,
@@ -210,6 +218,8 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
         quantity: 2.0,
         buy_price: 10.0,
         sell_price: 12.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
         commission_buy: 0.5,
         tax_buy: 0.25,
         commission_sell: 1.0,
@@ -233,6 +243,8 @@ fn calculates_fractional_short_trade_with_absolute_costs()
         quantity: 1.5,
         buy_price: 12.0,
         sell_price: 10.0,
+        exchange_rate_buy: 1.2,
+        exchange_rate_sell: 1.1,
         commission_buy: 0.2,
         tax_buy: 0.1,
         commission_sell: 0.3,
@@ -242,9 +254,9 @@ fn calculates_fractional_short_trade_with_absolute_costs()
     };
     store.add_trade(trade).unwrap();
     let journal = store.load().unwrap();
-    assert_eq!(journal.trades[0].profit_loss, Some(3.0));
-    assert_eq!(journal.trades[0].r_multiple(), Some(2.0));
-    assert_eq!(journal.pool_value, Some(75003.0));
+    assert!((journal.trades[0].profit_loss.unwrap() - 5.1).abs() < 1e-10);
+    assert!((journal.trades[0].r_multiple().unwrap() - 3.4).abs() < 1e-10);
+    assert!((journal.pool_value.unwrap() - 75005.1).abs() < 1e-10);
     let net: f64 = store
         .connection
         .query_row(
@@ -253,7 +265,7 @@ fn calculates_fractional_short_trade_with_absolute_costs()
             |row| row.get(0),
         )
         .unwrap();
-    assert!((net - 2.1).abs() < 1e-10);
+    assert!((net - 4.2).abs() < 1e-10);
 
     let id = journal.trades[0].id;
     store
@@ -277,7 +289,7 @@ fn calculates_fractional_short_trade_with_absolute_costs()
             |row| row.get(0),
         )
         .unwrap();
-    assert!((net - 1.7).abs() < 1e-10);
+    assert!((net - 3.8).abs() < 1e-10);
 }
 
 #[test]
@@ -292,6 +304,8 @@ fn a_losing_trade_reduces_the_pool_only_when_closed()
         quantity: 2.0,
         buy_price: 12.0,
         sell_price: 10.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
         commission_buy: 0.0,
         tax_buy: 0.0,
         commission_sell: 0.0,
@@ -310,6 +324,8 @@ fn a_losing_trade_reduces_the_pool_only_when_closed()
         quantity: 2.0,
         buy_price: 12.0,
         sell_price: 10.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
         commission_buy: 0.0,
         tax_buy: 0.0,
         commission_sell: 0.0,
@@ -347,5 +363,105 @@ fn reopens_a_file_database_without_reseeding()
         1
     );
     drop(reopened);
+    std::fs::remove_file(file).unwrap();
+}
+
+#[test]
+fn converts_trade_prices_to_eur_for_gross_net_pool_and_financing()
+{
+    let mut store = Store::open(Path::new(":memory:")).unwrap();
+    store.add_trade(NewTrade {
+        product: ".MGOLD.cfd".into(),
+        buy_date: "2026-09-28".into(),
+        sell_date: None,
+        is_long: true,
+        quantity: 2.0,
+        buy_price: 10.0,
+        sell_price: 0.0,
+        exchange_rate_buy: 1.2,
+        exchange_rate_sell: 1.0,
+        commission_buy: 0.1,
+        tax_buy: 0.0,
+        commission_sell: 0.2,
+        tax_sell: 0.0,
+        other_costs: 0.0,
+        initial_risk: 1.2,
+    }).unwrap();
+    let id = store.load().unwrap().trades[0].id;
+    store.update_trade(id, NewTrade {
+        product: ".MGOLD.cfd".into(),
+        buy_date: "2026-09-28".into(),
+        sell_date: Some("2026-09-29".into()),
+        is_long: true,
+        quantity: 2.0,
+        buy_price: 10.0,
+        sell_price: 12.0,
+        exchange_rate_buy: 1.2,
+        exchange_rate_sell: 1.1,
+        commission_buy: 0.1,
+        tax_buy: 0.0,
+        commission_sell: 0.2,
+        tax_sell: 0.0,
+        other_costs: 0.0,
+        initial_risk: 1.2,
+    }).unwrap();
+    let journal = store.load().unwrap();
+    assert_eq!((journal.trades[0].exchange_rate_buy, journal.trades[0].exchange_rate_sell), (1.2, 1.1));
+    assert!((journal.trades[0].profit_loss.unwrap() - 2.4).abs() < 1e-10);
+    assert!((journal.trades[0].r_multiple().unwrap() - 2.0).abs() < 1e-10);
+    assert!((journal.pool_value.unwrap() - 75002.4).abs() < 1e-10);
+    store.add_financing(NewFinancing {
+        trade_id: id,
+        date: "2026-09-29".into(),
+        quantity: 2.0,
+        price: 12.0,
+        rate: 1.0,
+        exchange_rate: 1.1,
+        days: 1,
+        value: 0.5,
+        note: String::new(),
+    }).unwrap();
+    let net: f64 = store.connection.query_row(
+        "SELECT profit_loss_total FROM t_trade_calculated", [], |row| row.get(0)
+    ).unwrap();
+    assert!((net - 1.6).abs() < 1e-10);
+}
+
+#[test]
+fn upgrades_a_version_one_database_without_exchange_rate_columns()
+{
+    let file = std::env::temp_dir().join(format!(
+        "capitalcommander-upgrade-{}-{}.sqlite3",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+    ));
+    {
+        let connection = rusqlite::Connection::open(&file).unwrap();
+        let old_schema = include_str!("../migrations/0001_initial.sql")
+            .lines()
+            .filter(|line| !line.contains("exchange_rate_buy REAL") && !line.contains("exchange_rate_sell REAL"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        connection.execute_batch(&old_schema).unwrap();
+        connection.pragma_update(None, "user_version", 1).unwrap();
+    }
+    let store = Store::open(&file).unwrap();
+    let columns: i64 = store.connection.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('t_trade') WHERE name IN ('exchange_rate_buy', 'exchange_rate_sell')",
+        [], |row| row.get(0)
+    ).unwrap();
+    assert_eq!(columns, 2);
+    store.connection.execute_batch(
+        "INSERT INTO t_trade_cost DEFAULT VALUES;
+         INSERT INTO t_trade_calculated DEFAULT VALUES;
+         INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, date_buy,
+                             is_long, shares_buy, price_buy)
+         VALUES (1, 1, 1, '2026-09-28', 1, 1, 10);"
+    ).unwrap();
+    let trade = &store.load().unwrap().trades[0];
+    assert_eq!((trade.exchange_rate_buy, trade.exchange_rate_sell), (1.0, 1.0));
+    let version: i64 = store.connection.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
+    assert_eq!(version, 2);
+    drop(store);
     std::fs::remove_file(file).unwrap();
 }

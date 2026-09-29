@@ -1,6 +1,7 @@
 mod data;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
+use libcalculatorfinance::convert_from_orig;
 use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -58,6 +59,8 @@ fn main() -> Result<(), slint::PlatformError>
               quantity,
               buy_price,
               sell_price,
+              exchange_rate_buy,
+              exchange_rate_sell,
               commission_buy,
               tax_buy,
               commission_sell,
@@ -86,6 +89,8 @@ fn main() -> Result<(), slint::PlatformError>
                     let quantity = positive(&quantity, "Quantity")?;
                     let buy_price = nonnegative(&buy_price, "Buy price")?;
                     let sell_price = nonnegative(&sell_price, "Sell price")?;
+                    let exchange_rate_buy = positive(&exchange_rate_buy, "Buy exchange rate")?;
+                    let exchange_rate_sell = positive(&exchange_rate_sell, "Sell exchange rate")?;
                     let commission_buy = nonnegative(&commission_buy, "Commission buy")?;
                     let tax_buy = nonnegative(&tax_buy, "Tax buy")?;
                     let commission_sell = nonnegative(&commission_sell, "Commission sell")?;
@@ -107,6 +112,8 @@ fn main() -> Result<(), slint::PlatformError>
                         is_long,
                         buy_price,
                         sell_price,
+                        exchange_rate_buy,
+                        exchange_rate_sell,
                         quantity,
                         commission_buy,
                         tax_buy,
@@ -183,8 +190,9 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         return Err("Days must be greater than zero".into());
                     }
+                    let price_eur = convert_from_orig(price, exchange_rate);
                     let calculated =
-                        quantity * price * rate / 100.0 * exchange_rate * days as f64 / 360.0;
+                        quantity * price_eur * rate / 100.0 * days as f64 / 360.0;
                     let value = if value.trim().is_empty()
                     {
                         calculated
@@ -361,6 +369,8 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
             edit_quantity: trade.quantity.to_string().into(),
             buy_price: trade.buy_price.to_string().into(),
             sell_price: trade.sell_price.to_string().into(),
+            exchange_rate_buy: trade.exchange_rate_buy.to_string().into(),
+            exchange_rate_sell: trade.exchange_rate_sell.to_string().into(),
             commission_buy: trade.commission_buy.to_string().into(),
             tax_buy: trade.tax_buy.to_string().into(),
             commission_sell: trade.commission_sell.to_string().into(),

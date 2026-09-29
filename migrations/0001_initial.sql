@@ -82,6 +82,8 @@ CREATE TABLE t_trade (
     shares_sell REAL NOT NULL DEFAULT 0 CHECK (shares_sell >= 0),
     price_buy REAL NOT NULL CHECK (price_buy >= 0),
     price_sell REAL NOT NULL DEFAULT 0 CHECK (price_sell >= 0),
+    exchange_rate_buy REAL NOT NULL DEFAULT 1 CHECK (exchange_rate_buy > 0),
+    exchange_rate_sell REAL NOT NULL DEFAULT 1 CHECK (exchange_rate_sell > 0),
     is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
