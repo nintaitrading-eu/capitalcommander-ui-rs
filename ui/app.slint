@@ -62,10 +62,13 @@ export component AppWindow inherits Window
     private property <color> aqua: #8ec07c;
     private property <color> accent: #fabd2f;
     private property <color> surface: #3c3836;
-    private property <color> divider: #504945;
+    private property <color> divider: #665c54;
+    private property <color> faded: #504945;
+    private property <color> log: #83a598;
     in-out property <string> page: "Journal";
     in-out property <string> status: "Ready";
     in-out property <string> source-label: "capitalcommander.sqlite3";
+    in-out property <string> current-pool: "";
     in-out property <string> selected-product: "All products";
     in-out property <[string]> products;
     in-out property <[ProductRow]> product-details;
@@ -126,8 +129,8 @@ export component AppWindow inherits Window
             spacing: 16px;
             Text { text: root.page; color: root.accent; font-size: 28px; font-weight: 700; }
             Rectangle { horizontal-stretch: 1; }
-            Text { text: root.source-label; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Journal": Text { text: "Current pool goes here?"; color: root.aqua; vertical-alignment: center; }
+            Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
+            if root.page == "Journal": Text { width: 120px; font-size: 24px; vertical-alignment: center; color: root.aqua; text: root.current-pool; }
             if root.page == "Journal": Text { text: "Product"; color: root.secondary; vertical-alignment: center; }
             if root.page == "Journal": filter := ComboBox
             {
@@ -143,48 +146,48 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Journal" || root.page == "Expectancy": VerticalBox
         {
-            spacing: 12px;
+            spacing: 8px;
             HorizontalBox
             {
                 spacing: 10px;
                 Rectangle
                 {
-                    background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 12px; spacing: 4px;
+                        padding: 8px; spacing: 4px;
                         Text { text: "CLOSED TRADES"; color: root.muted; font-size: 11px; }
-                        Text { text: root.trade-count; color: root.primary; font-size: 23px; font-weight: 700; }
+                        Text { text: root.trade-count; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
                 Rectangle
                 {
-                    background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 12px; spacing: 4px;
+                        padding: 8px; spacing: 4px;
                         Text { text: "WIN RATE"; color: root.muted; font-size: 11px; }
-                        Text { text: root.win-rate; color: root.primary; font-size: 23px; font-weight: 700; }
+                        Text { text: root.win-rate; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
                 Rectangle
                 {
-                    background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 12px; spacing: 4px;
+                        padding: 8px; spacing: 4px;
                         Text { text: "EXPECTANCY"; color: root.muted; font-size: 11px; }
-                        Text { text: root.expectancy; color: root.accent; font-size: 23px; font-weight: 700; }
+                        Text { text: root.expectancy; color: root.accent; font-size: 18px; font-weight: 700; }
                     }
                 }
                 Rectangle
                 {
-                    background: root.surface; border-radius: 5px; height: 76px; horizontal-stretch: 1;
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 12px; spacing: 4px;
+                        padding: 8px; spacing: 4px;
                         Text { text: "TOTAL P/L"; color: root.muted; font-size: 11px; }
-                        Text { text: root.total-pl; color: root.primary; font-size: 23px; font-weight: 700; }
+                        Text { text: root.total-pl; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
             }
@@ -206,7 +209,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
             if root.page == "Journal": VerticalBox
             {
-                spacing: 9px;
+                spacing: 3px;
                 HorizontalBox
                 {
                     Text { text: root.editing-trade-id == 0 ? "Log trade" : "Edit trade #" + root.editing-trade-id; color: root.accent; font-size: 17px; font-weight: 600; }
@@ -330,6 +333,10 @@ export component AppWindow inherits Window
                         }
                     } 
                 }
+
+/*******************************************************************************
+ * Trade journal info
+ *******************************************************************************/
                 HorizontalBox
                 {
                     Text { text: "Info"; color: root.secondary; font-size: 17px; font-weight: 600; }
@@ -349,6 +356,10 @@ export component AppWindow inherits Window
                     Text { text: "P/L"; width: 110px; color: root.muted; }
                     Text { text: "R"; color: root.muted; }
                 }
+
+/*******************************************************************************
+ * Trade journal results
+ *******************************************************************************/
                 ScrollView
                 {
                     vertical-stretch: 1;
@@ -528,7 +539,11 @@ export component AppWindow inherits Window
             Text { text: "Trading journal with a local SQLite database."; color: root.secondary; }
             Rectangle { vertical-stretch: 1; }
         }
-        Rectangle { height: 1px; background: root.divider; }
-        Text { text: root.status; color: root.muted; font-size: 12px; }
+
+/*******************************************************************************
+ * Log area
+ *******************************************************************************/
+        Rectangle { height: 1px; background: root.log; }
+        Text { text: root.status; color: root.log; font-size: 12px; }
     }
 }

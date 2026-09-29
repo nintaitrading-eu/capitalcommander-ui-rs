@@ -7,6 +7,7 @@ build = "build.rs"
 [dependencies]
 slint = "=1.18.1"
 rusqlite = { version = "0.37", features = ["bundled"] }
+libcalculatorfinance = { git = "https://github.com/nintaitrading-eu/calculatorfinance-lib-rs", branch = "calculatorfinance-lib-rs-develop" }
 
 [build-dependencies]
 slint-build = "=1.18.1"

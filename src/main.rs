@@ -252,6 +252,13 @@ fn strings(values: Vec<String>) -> ModelRc<SharedString> {
 }
 
 fn refresh(window: &AppWindow, journal: &Journal, product: &str) {
+    window.set_current_pool(
+        journal
+            .pool_value
+            .map(|value| format!("{value:.2}"))
+            .unwrap_or_default()
+            .into(),
+    );
     let matches = |trade: &&Trade| product == "All products" || trade.product == product;
     let selected: Vec<_> = journal.trades.iter().filter(matches).collect();
     let closed: Vec<_> = selected
