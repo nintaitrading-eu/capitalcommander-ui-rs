@@ -1,6 +1,7 @@
 use libcalculatorfinance::{
-    calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple, convert_from_orig,
-    TradeType,
+    calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple,
+    calculate_risk_actual, calculate_risk_initial, calculate_risk_input, calculate_stoploss,
+    convert_from_orig, TradeType,
 };
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
@@ -33,11 +34,36 @@ pub struct Trade
     pub tax_sell: f64,
     pub other_costs: f64,
     pub initial_risk: f64,
+    pub actual_risk: Option<f64>,
+    pub risk_percent: Option<f64>,
+    pub risk_pool: Option<f64>,
+    pub stoploss: Option<f64>,
     pub profit_loss: Option<f64>,
 }
 
 impl Trade
 {
+    pub fn displayed_actual_risk(&self) -> Option<f64>
+    {
+        self.actual_risk.or_else(|| {
+            self.profit_loss.map(|profit_loss| {
+                calculate_risk_actual(
+                    convert_from_orig(self.buy_price, self.exchange_rate_buy) * self.quantity,
+                    1,
+                    0.0,
+                    self.commission_buy + self.tax_buy,
+                    convert_from_orig(self.sell_price, self.exchange_rate_sell) * self.quantity,
+                    1,
+                    0.0,
+                    self.commission_sell + self.tax_sell,
+                    self.initial_risk,
+                    profit_loss,
+                    trade_type(self.is_long),
+                )
+            })
+        })
+    }
+
     pub fn r_multiple(&self) -> Option<f64>
     {
         self.profit_loss
@@ -77,6 +103,8 @@ pub struct NewTrade
     pub tax_sell: f64,
     pub other_costs: f64,
     pub initial_risk: f64,
+    pub risk_percent: Option<f64>,
+    pub risk_pool: Option<f64>,
 }
 
 pub struct NewFinancing
@@ -125,7 +153,7 @@ impl Store
                     .execute_batch(include_str!("../migrations/0001_initial.sql"))
                     .map_err(db_error)?;
                 transaction
-                    .pragma_update(None, "user_version", 2)
+                    .pragma_update(None, "user_version", 4)
                     .map_err(db_error)?;
                 transaction.commit().map_err(db_error)?;
             }
@@ -150,11 +178,50 @@ impl Store
                             .map_err(db_error)?;
                     }
                 }
-                transaction.pragma_update(None, "user_version", 2).map_err(db_error)?;
+                transaction
+                    .pragma_update(None, "user_version", 2)
+                    .map_err(db_error)?;
                 transaction.commit().map_err(db_error)?;
             }
-            2 => {}
+            2 =>
+            {}
+            3 =>
+            {}
+            4 =>
+            {}
             other => return Err(format!("Unsupported database schema version {other}")),
+        }
+        if version == 1 || version == 2
+        {
+            let transaction = connection.transaction().map_err(db_error)?;
+            transaction.execute_batch(
+                "ALTER TABLE t_trade_calculated ADD COLUMN risk_actual REAL CHECK (risk_actual >= 0);
+                 ALTER TABLE t_trade_calculated ADD COLUMN risk_percent REAL CHECK (risk_percent >= 0);
+                 ALTER TABLE t_trade_calculated ADD COLUMN risk_pool REAL CHECK (risk_pool >= 0);
+                 ALTER TABLE t_trade_calculated ADD COLUMN stoploss REAL CHECK (stoploss >= 0);",
+            ).map_err(db_error)?;
+            transaction
+                .pragma_update(None, "user_version", 4)
+                .map_err(db_error)?;
+            transaction.commit().map_err(db_error)?;
+        }
+        if version == 3
+        {
+            let transaction = connection.transaction().map_err(db_error)?;
+            transaction.execute_batch(
+                "ALTER TABLE t_trade_calculated ADD COLUMN risk_percent REAL CHECK (risk_percent >= 0);
+                 ALTER TABLE t_trade_calculated ADD COLUMN risk_pool REAL CHECK (risk_pool >= 0);
+                 ALTER TABLE t_trade_calculated ADD COLUMN stoploss REAL CHECK (stoploss >= 0);
+                 UPDATE t_trade_calculated SET
+                     risk_percent = (SELECT risk_percent FROM t_trade WHERE t_trade.trade_calculated_id = t_trade_calculated.trade_calculated_id),
+                     risk_pool = (SELECT risk_pool FROM t_trade WHERE t_trade.trade_calculated_id = t_trade_calculated.trade_calculated_id),
+                     stoploss = (SELECT stop_loss FROM t_trade WHERE t_trade.trade_calculated_id = t_trade_calculated.trade_calculated_id);
+                 ALTER TABLE t_trade DROP COLUMN risk_percent;
+                 ALTER TABLE t_trade DROP COLUMN risk_pool;
+                 ALTER TABLE t_trade DROP COLUMN stop_loss;",
+            ).map_err(db_error)?;
+            transaction.pragma_update(None, "user_version", 4).map_err(db_error)?;
+            transaction.commit().map_err(db_error)?;
         }
         Ok(Self { connection })
     }
@@ -203,7 +270,8 @@ impl Store
                     t.is_long, t.shares_buy, t.price_buy, t.price_sell,
                     cost.commission_buy, cost.tax_buy, cost.commission_sell,
                     cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss,
-                    t.exchange_rate_buy, t.exchange_rate_sell
+                    t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual,
+                    calc.risk_percent, calc.risk_pool, calc.stoploss
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
              JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
              JOIN t_trade_calculated calc ON calc.trade_calculated_id = t.trade_calculated_id
@@ -230,6 +298,10 @@ impl Store
                     profit_loss: row.get(14)?,
                     exchange_rate_buy: row.get(15)?,
                     exchange_rate_sell: row.get(16)?,
+                    actual_risk: row.get(17)?,
+                    risk_percent: row.get(18)?,
+                    risk_pool: row.get(19)?,
+                    stoploss: row.get(20)?,
                 })
             })
             .map_err(db_error)?;
@@ -330,7 +402,8 @@ impl Store
             .optional()
             .map_err(db_error)?
             .ok_or("Select a product by name")?;
-        let (profit_loss, profit_loss_total, r_multiple) = trade_calculations(&trade, 0.0)?;
+        let (stoploss, initial_risk, actual_risk, profit_loss, profit_loss_total, r_multiple) =
+            trade_calculations(&trade, 0.0)?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
@@ -340,9 +413,11 @@ impl Store
             .map_err(db_error)?;
         let cost_id = transaction.last_insert_rowid();
         transaction.execute(
-            "INSERT INTO t_trade_calculated(risk_initial, profit_loss, profit_loss_total, r_multiple)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![trade.initial_risk, profit_loss, profit_loss_total, r_multiple]
+            "INSERT INTO t_trade_calculated(risk_initial, risk_actual, risk_percent, risk_pool, stoploss,
+                                              profit_loss, profit_loss_total, r_multiple)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![initial_risk, actual_risk, trade.risk_percent, trade.risk_pool, stoploss,
+                    profit_loss, profit_loss_total, r_multiple]
         ).map_err(db_error)?;
         let calculated_id = transaction.last_insert_rowid();
         transaction.execute(
@@ -378,14 +453,19 @@ impl Store
             [id],
             |row| row.get(0),
         ).map_err(db_error)?;
-        let (profit_loss, profit_loss_total, r_multiple) =
+        let (stoploss, initial_risk, actual_risk, profit_loss, profit_loss_total, r_multiple) =
             trade_calculations(&trade, financing_total)?;
-        let (cost_id, calculated_id): (i64, i64) = self.connection.query_row(
-            "SELECT trade_cost_id, trade_calculated_id FROM t_trade
+        let (cost_id, calculated_id): (i64, i64) = self
+            .connection
+            .query_row(
+                "SELECT trade_cost_id, trade_calculated_id FROM t_trade
              WHERE trade_id = ?1 AND is_deleted = 0 AND date_sell IS NULL",
-            [id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).optional().map_err(db_error)?.ok_or_else(|| format!("Trade #{id} does not exist or is already closed"))?;
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(db_error)?
+            .ok_or_else(|| format!("Trade #{id} does not exist or is already closed"))?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
@@ -432,12 +512,17 @@ impl Store
             .map_err(db_error)?;
         transaction
             .execute(
-                "UPDATE t_trade_calculated SET risk_initial = ?1, profit_loss = ?2,
-             profit_loss_total = ?3, r_multiple = ?4,
+                "UPDATE t_trade_calculated SET risk_initial = ?1, risk_actual = ?2,
+             risk_percent = ?3, risk_pool = ?4, stoploss = ?5, profit_loss = ?6,
+             profit_loss_total = ?7, r_multiple = ?8,
              date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE trade_calculated_id = ?5",
+             WHERE trade_calculated_id = ?9",
                 params![
-                    trade.initial_risk,
+                    initial_risk,
+                    actual_risk,
+                    trade.risk_percent,
+                    trade.risk_pool,
+                    stoploss,
                     profit_loss,
                     profit_loss_total,
                     r_multiple,
@@ -445,9 +530,9 @@ impl Store
                 ],
             )
             .map_err(db_error)?;
-        if let Some(profit_loss) = profit_loss
+        if let Some(profit_loss_total) = profit_loss_total
         {
-            record_pool_profit_loss(&transaction, profit_loss)?;
+            record_pool_profit_loss(&transaction, profit_loss_total)?;
         }
         transaction.commit().map_err(db_error)?;
         Ok(())
@@ -545,7 +630,7 @@ impl Store
     }
 }
 
-fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss: f64) -> Result<(), String>
+fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss_total: f64) -> Result<(), String>
 {
     let current: f64 = transaction
         .query_row(
@@ -556,7 +641,7 @@ fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss: f64) -> R
         .optional()
         .map_err(db_error)?
         .ok_or("No pool balance exists")?;
-    let updated = current + profit_loss;
+    let updated = current + profit_loss_total;
     if !updated.is_finite() || updated < 0.0
     {
         return Err("Closing this trade would make the pool balance invalid".into());
@@ -570,8 +655,40 @@ fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss: f64) -> R
 fn trade_calculations(
     trade: &NewTrade,
     financing_total: f64,
-) -> Result<(Option<f64>, Option<f64>, Option<f64>), String>
+) -> Result<(Option<f64>, f64, Option<f64>, Option<f64>, Option<f64>, Option<f64>), String>
 {
+    let stoploss = match (trade.risk_percent, trade.risk_pool)
+    {
+        (Some(percent), Some(pool)) => Some(calculate_trade_stoploss(
+            percent, pool, trade.buy_price, trade.quantity, trade.exchange_rate_buy,
+            trade.commission_buy + trade.commission_sell + trade.tax_buy + trade.tax_sell,
+            trade.is_long,
+        )?),
+        (None, None) => None,
+        _ => return Err("Risk % requires a pool value".into()),
+    };
+    let initial_risk = if let Some(stoploss) = stoploss
+    {
+        // The calculator uses integer shares and percentage taxes. A single
+        // share at the full position value preserves fractional quantities;
+        // the average fixed cost covers both sides of a stopped trade.
+        calculate_risk_initial(
+            convert_from_orig(trade.buy_price, trade.exchange_rate_buy) * trade.quantity,
+            1,
+            0.0,
+            (trade.commission_buy + trade.commission_sell + trade.tax_buy + trade.tax_sell) / 2.0,
+            convert_from_orig(stoploss, trade.exchange_rate_buy) * trade.quantity,
+            trade.is_long,
+        )
+    }
+    else
+    {
+        trade.initial_risk // Existing trades without a recorded risk percentage.
+    };
+    if !initial_risk.is_finite() || initial_risk < 0.0
+    {
+        return Err("Initial risk must be finite and nonnegative; check the stop loss".into());
+    }
     let profit_loss = trade.sell_date.as_ref().map(|_| {
         let buy_price = convert_from_orig(trade.buy_price, trade.exchange_rate_buy);
         let sell_price = convert_from_orig(trade.sell_price, trade.exchange_rate_sell);
@@ -608,13 +725,76 @@ fn trade_calculations(
         })
         .transpose()?;
     let r_multiple = profit_loss
-        .filter(|_| trade.initial_risk > 0.0)
-        .map(|pl| calculate_r_multiple(pl, trade.initial_risk));
+        .filter(|_| initial_risk > 0.0)
+        .map(|pl| calculate_r_multiple(pl, initial_risk));
     if r_multiple.is_some_and(|value| !value.is_finite())
     {
         return Err("Calculated R is too large".into());
     }
-    Ok((profit_loss, profit_loss_total, r_multiple))
+    let actual_risk = profit_loss.map(|pl| {
+        calculate_risk_actual(
+            convert_from_orig(trade.buy_price, trade.exchange_rate_buy) * trade.quantity,
+            1,
+            0.0,
+            trade.commission_buy + trade.tax_buy,
+            convert_from_orig(trade.sell_price, trade.exchange_rate_sell) * trade.quantity,
+            1,
+            0.0,
+            trade.commission_sell + trade.tax_sell,
+            initial_risk,
+            pl,
+            trade_type(trade.is_long),
+        )
+    });
+    if actual_risk.is_some_and(|value| !value.is_finite() || value < 0.0)
+    {
+        return Err("Calculated actual risk is invalid".into());
+    }
+    Ok((
+        stoploss,
+        initial_risk,
+        actual_risk,
+        profit_loss,
+        profit_loss_total,
+        r_multiple,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn calculate_trade_stoploss(
+    risk_percent: f64,
+    pool: f64,
+    buy_price: f64,
+    quantity: f64,
+    exchange_rate_buy: f64,
+    round_trip_cost: f64,
+    is_long: bool,
+) -> Result<f64, String>
+{
+    if !risk_percent.is_finite() || risk_percent < 0.0 || !pool.is_finite() || pool < 0.0
+        || !buy_price.is_finite() || buy_price < 0.0 || !quantity.is_finite() || quantity <= 0.0
+        || !exchange_rate_buy.is_finite() || exchange_rate_buy <= 0.0
+        || !round_trip_cost.is_finite() || round_trip_cost < 0.0
+    {
+        return Err("Invalid input for stoploss calculation".into());
+    }
+    let risk_input = calculate_risk_input(pool, risk_percent);
+    if !risk_input.is_finite()
+    {
+        return Err("Risk input is too large".into());
+    }
+    // The calculator takes integer shares. One share at the position's EUR
+    // value preserves fractional quantities and absolute transaction costs.
+    let price_eur = convert_from_orig(buy_price, exchange_rate_buy) * quantity;
+    let stoploss_eur = calculate_stoploss(
+        price_eur, 1, 0.0, round_trip_cost / 2.0, risk_percent, pool, is_long,
+    );
+    let stoploss = stoploss_eur / exchange_rate_buy / quantity;
+    if !stoploss.is_finite() || stoploss < 0.0
+    {
+        return Err("Calculated stoploss is invalid; check the risk, price, and quantity".into());
+    }
+    Ok(stoploss)
 }
 
 fn trade_type(is_long: bool) -> TradeType

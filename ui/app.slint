@@ -20,7 +20,10 @@ export struct TradeRow
     commission-sell: string,
     tax-sell: string,
     other-costs: string,
-    initial-risk: string,
+    risk-percent: string,
+    risk-pool: string,
+    risk-initial: string,
+    risk-actual: string,
     profit: string,
     r: string,
 }
@@ -78,6 +81,7 @@ export component AppWindow inherits Window
     in-out property <[string]> filters;
     in-out property <[TradeRow]> trades;
     private property <int> editing-trade-id: 0;
+    private property <string> risk-pool: root.current-pool;
     in-out property <[FinancingRow]> financing;
     in-out property <string> trade-count: "0";
     in-out property <string> win-rate: "—";
@@ -86,7 +90,9 @@ export component AppWindow inherits Window
     in-out property <string> financing-total: "—";
 
     callback filter-product(string);
-    callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
+    callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
+    pure callback calculate-risk-input(string, string) -> string;
+    pure callback calculate-stoploss(string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
     callback quit();
@@ -203,7 +209,7 @@ export component AppWindow inherits Window
                 spacing: 8px;
                 Text { text: "Expectancy = average of (trade P/L ÷ initial risk)"; color: root.primary; font-size: 17px; }
                 Text { text: "Only closed trades with a positive initial risk are included. The product selector updates all figures above."; color: root.secondary; }
-                Text { text: "P/L is the gross price move; initial risk is entered with each trade. Costs are stored separately."; color: root.secondary; }
+                Text { text: "P/L is the gross price move; stoploss and initial risk are calculated from the risk percentage. Costs are stored separately."; color: root.secondary; }
                 Rectangle { vertical-stretch: 1; }
             }
 
@@ -235,7 +241,8 @@ export component AppWindow inherits Window
                             commission-sell.text = "0";
                             tax-sell.text = "0";
                             other-costs.text = "0";
-                            risk.text = "0";
+                            risk.text = "";
+                            root.risk-pool = root.current-pool;
                       }
                    }
                 }
@@ -322,8 +329,8 @@ export component AppWindow inherits Window
                     }
                     VerticalBox
                     {
-                        Text { text: "Initial risk"; color: root.secondary; }
-                        risk := LineEdit { text: "0"; }
+                        Text { text: "Risk %"; color: root.secondary; }
+                        risk := LineEdit { placeholder-text: "Percent of pool"; }
                     }
                     Rectangle { horizontal-stretch: 1; }
                 }
@@ -334,7 +341,7 @@ export component AppWindow inherits Window
                         if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
                             buy-date.text, sell-date.text, quantity.text, buy-price.text,
                             sell-price.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, other-costs.text,
-                            risk.text, root.selected-product)
+                            risk.text, root.risk-pool, root.selected-product)
                         {
                             root.editing-trade-id = 0;
                             trade-side.current-value = "Long";
@@ -350,7 +357,8 @@ export component AppWindow inherits Window
                             commission-sell.text = "0";
                             tax-sell.text = "0";
                             other-costs.text = "0";
-                            risk.text = "0";
+                            risk.text = "";
+                            root.risk-pool = root.current-pool;
                         }
                     } 
                 }
@@ -363,18 +371,24 @@ export component AppWindow inherits Window
                     Text { text: "Info"; color: root.secondary; font-size: 17px; font-weight: 600; }
                     Rectangle { horizontal-stretch: 1; }
                     Text { text: "Risk input"; color: root.secondary; }
-                    Text { text: "TODO"; color: root.aqua; }
+                    Text { text: root.calculate-risk-input(root.risk-pool, risk.text); color: root.aqua; }
+                    Text { text: "Stoploss"; color: root.secondary; }
+                    Text { text: root.calculate-stoploss(root.risk-pool, risk.text, buy-price.text, quantity.text,
+                        exchange-rate-buy.text, commission-buy.text, tax-buy.text, commission-sell.text,
+                        tax-sell.text, trade-side.current-value); color: root.aqua; }
                 }
                 Rectangle { height: 1px; background: root.divider; }
                 HorizontalBox
                 {
-                    spacing: 3px;
+                    spacing: 8px;
                     Text { text: "ID"; width: 45px; color: root.muted; }
-                    Text { text: "PRODUCT"; width: 170px; color: root.muted; }
+                    Text { text: "PRODUCT"; width: 155px; color: root.muted; }
                     Text { text: "SIDE"; width: 65px; color: root.muted; }
-                    Text { text: "BUY → SELL"; width: 205px; color: root.muted; }
+                    Text { text: "BUY → SELL"; width: 180px; color: root.muted; }
                     Text { text: "QTY"; width: 75px; color: root.muted; }
-                    Text { text: "P/L"; width: 110px; color: root.muted; }
+                    Text { text: "INITIAL RISK"; width: 100px; color: root.muted; }
+                    Text { text: "ACTUAL RISK"; width: 100px; color: root.muted; }
+                    Text { text: "P/L"; width: 95px; color: root.muted; }
                     Text { text: "R"; color: root.muted; }
                 }
 
@@ -410,18 +424,21 @@ export component AppWindow inherits Window
                                     commission-sell.text = trade.commission-sell;
                                     tax-sell.text = trade.tax-sell;
                                     other-costs.text = trade.other-costs;
-                                    risk.text = trade.initial-risk;
+                                    risk.text = trade.risk-percent;
+                                    root.risk-pool = trade.risk-pool == "" ? root.current-pool : trade.risk-pool;
                                 }
                             }
                             HorizontalBox
                             {
-                                padding: 9px; spacing: 12px;
+                                padding: 9px; spacing: 8px;
                                 Text { text: "#" + trade.id; width: 45px; color: root.muted; }
-                                Text { text: trade.product; width: 170px; color: root.primary; font-weight: 600; }
+                                Text { text: trade.product; width: 155px; color: root.primary; font-weight: 600; }
                                 Text { text: trade.side; width: 65px; color: root.secondary; }
-                                Text { text: trade.dates; width: 205px; color: root.secondary; }
+                                Text { text: trade.dates; width: 180px; color: root.secondary; }
                                 Text { text: trade.quantity; width: 75px; color: root.secondary; }
-                                Text { text: trade.profit; width: 110px; color: root.primary; }
+                                Text { text: trade.risk-initial; width: 100px; color: root.secondary; }
+                                Text { text: trade.risk-actual; width: 100px; color: root.secondary; }
+                                Text { text: trade.profit; width: 95px; color: root.primary; }
                                 Text { text: trade.r; color: root.accent; }
                             }
                         }

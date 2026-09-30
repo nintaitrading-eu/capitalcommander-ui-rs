@@ -1,7 +1,7 @@
 mod data;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
-use libcalculatorfinance::convert_from_orig;
+use libcalculatorfinance::{calculate_risk_input, convert_from_orig};
 use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -47,6 +47,35 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    window.on_calculate_risk_input(|pool, percent| {
+        let value = pool
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .zip(percent.trim().parse::<f64>().ok())
+            .filter(|(pool, percent)| {
+                pool.is_finite() && *pool >= 0.0 && percent.is_finite() && *percent >= 0.0
+            })
+            .map(|(pool, percent)| calculate_risk_input(pool, percent))
+            .filter(|value| value.is_finite());
+        value
+            .map(|value| format!("{value:.2}"))
+            .unwrap_or_else(|| "—".into())
+            .into()
+    });
+    window.on_calculate_stoploss(|pool, percent, price, quantity, exchange_rate, commission_buy,
+                                  tax_buy, commission_sell, tax_sell, side| {
+        let inputs: Option<Vec<f64>> = [pool, percent, price, quantity, exchange_rate,
+                                        commission_buy, tax_buy, commission_sell, tax_sell]
+            .iter().map(|value| value.trim().parse::<f64>().ok()).collect();
+        inputs.and_then(|values| data::calculate_trade_stoploss(
+            values[1], values[0], values[2], values[3], values[4],
+            values[5] + values[6] + values[7] + values[8], side == "Long",
+        ).ok())
+        .map(|value| format!("{value:.4}"))
+        .unwrap_or_else(|| "—".into()).into()
+    });
+
     let weak = window.as_weak();
     let model = journal.clone();
     let database = store.clone();
@@ -67,6 +96,7 @@ fn main() -> Result<(), slint::PlatformError>
               tax_sell,
               other_costs,
               risk,
+              risk_pool,
               filter| {
             if let Some(window) = weak.upgrade()
             {
@@ -96,7 +126,44 @@ fn main() -> Result<(), slint::PlatformError>
                     let commission_sell = nonnegative(&commission_sell, "Commission sell")?;
                     let tax_sell = nonnegative(&tax_sell, "Tax sell")?;
                     let other_costs = nonnegative(&other_costs, "Other costs")?;
-                    let risk = nonnegative(&risk, "Initial risk")?;
+                    let risk_percent = if risk.trim().is_empty()
+                    {
+                        None
+                    }
+                    else
+                    {
+                        Some(nonnegative(&risk, "Risk %")?)
+                    };
+                    let risk_pool = if risk_percent.is_none() || risk_pool.trim().is_empty()
+                    {
+                        None
+                    }
+                    else
+                    {
+                        Some(nonnegative(&risk_pool, "Risk pool")?)
+                    };
+                    if trade_id == 0 && (risk_percent.is_none() || risk_pool.is_none())
+                    {
+                        return Err("Enter risk % and a pool value".into());
+                    }
+                    if risk_percent.is_some() != risk_pool.is_some()
+                    {
+                        return Err("Risk % requires a pool value".into());
+                    }
+                    let initial_risk = if trade_id == 0
+                    {
+                        0.0
+                    }
+                    else
+                    {
+                        model
+                            .borrow()
+                            .trades
+                            .iter()
+                            .find(|trade| trade.id == trade_id as i64)
+                            .map(|trade| trade.initial_risk)
+                            .ok_or("Selected trade no longer exists")?
+                    };
                     let is_long = side == "Long";
                     let trade = NewTrade {
                         product: product.into(),
@@ -120,7 +187,9 @@ fn main() -> Result<(), slint::PlatformError>
                         commission_sell,
                         tax_sell,
                         other_costs,
-                        initial_risk: risk,
+                        initial_risk,
+                        risk_percent,
+                        risk_pool,
                     };
                     if trade_id == 0
                     {
@@ -191,8 +260,7 @@ fn main() -> Result<(), slint::PlatformError>
                         return Err("Days must be greater than zero".into());
                     }
                     let price_eur = convert_from_orig(price, exchange_rate);
-                    let calculated =
-                        quantity * price_eur * rate / 100.0 * days as f64 / 360.0;
+                    let calculated = quantity * price_eur * rate / 100.0 * days as f64 / 360.0;
                     let value = if value.trim().is_empty()
                     {
                         calculated
@@ -376,7 +444,22 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
             commission_sell: trade.commission_sell.to_string().into(),
             tax_sell: trade.tax_sell.to_string().into(),
             other_costs: trade.other_costs.to_string().into(),
-            initial_risk: trade.initial_risk.to_string().into(),
+            risk_percent: trade
+                .risk_percent
+                .map(|value| value.to_string())
+                .unwrap_or_default()
+                .into(),
+            risk_pool: trade
+                .risk_pool
+                .map(|value| value.to_string())
+                .unwrap_or_default()
+                .into(),
+            risk_initial: format!("{:.2}", trade.initial_risk).into(),
+            risk_actual: trade
+                .displayed_actual_risk()
+                .map(|value| format!("{value:.2}"))
+                .unwrap_or_else(|| "—".into())
+                .into(),
             profit: trade
                 .profit_loss
                 .map(|n| format!("{n:+.2}"))

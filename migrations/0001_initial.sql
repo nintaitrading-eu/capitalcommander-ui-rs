@@ -62,6 +62,10 @@ CREATE TABLE t_pool(
 CREATE TABLE t_trade_calculated (
     trade_calculated_id INTEGER PRIMARY KEY,
     risk_initial REAL NOT NULL DEFAULT 0 CHECK (risk_initial >= 0),
+    risk_actual REAL CHECK (risk_actual >= 0),
+    risk_percent REAL CHECK (risk_percent >= 0),
+    risk_pool REAL CHECK (risk_pool >= 0),
+    stoploss REAL CHECK (stoploss >= 0),
     profit_loss REAL,
     profit_loss_total REAL,
     r_multiple REAL,
