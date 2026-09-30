@@ -37,8 +37,8 @@ pub struct Trade
     pub actual_risk: Option<f64>,
     pub risk_percent: Option<f64>,
     pub risk_pool: Option<f64>,
-    pub stoploss: Option<f64>,
     pub profit_loss: Option<f64>,
+    pub profit_loss_total: Option<f64>,
 }
 
 impl Trade
@@ -153,75 +153,11 @@ impl Store
                     .execute_batch(include_str!("../migrations/0001_initial.sql"))
                     .map_err(db_error)?;
                 transaction
-                    .pragma_update(None, "user_version", 4)
+                    .pragma_update(None, "user_version", 0)
                     .map_err(db_error)?;
                 transaction.commit().map_err(db_error)?;
             }
-            1 =>
-            {
-                let transaction = connection.transaction().map_err(db_error)?;
-                for column in ["exchange_rate_buy", "exchange_rate_sell"]
-                {
-                    let names: Vec<String> = transaction
-                        .prepare("PRAGMA table_info(t_trade)")
-                        .map_err(db_error)?
-                        .query_map([], |row| row.get::<_, String>(1))
-                        .map_err(db_error)?
-                        .collect::<Result<_, _>>()
-                        .map_err(db_error)?;
-                    if !names.iter().any(|name| name == column)
-                    {
-                        transaction
-                            .execute_batch(&format!(
-                                "ALTER TABLE t_trade ADD COLUMN {column} REAL NOT NULL DEFAULT 1 CHECK ({column} > 0)"
-                            ))
-                            .map_err(db_error)?;
-                    }
-                }
-                transaction
-                    .pragma_update(None, "user_version", 2)
-                    .map_err(db_error)?;
-                transaction.commit().map_err(db_error)?;
-            }
-            2 =>
-            {}
-            3 =>
-            {}
-            4 =>
-            {}
             other => return Err(format!("Unsupported database schema version {other}")),
-        }
-        if version == 1 || version == 2
-        {
-            let transaction = connection.transaction().map_err(db_error)?;
-            transaction.execute_batch(
-                "ALTER TABLE t_trade_calculated ADD COLUMN risk_actual REAL CHECK (risk_actual >= 0);
-                 ALTER TABLE t_trade_calculated ADD COLUMN risk_percent REAL CHECK (risk_percent >= 0);
-                 ALTER TABLE t_trade_calculated ADD COLUMN risk_pool REAL CHECK (risk_pool >= 0);
-                 ALTER TABLE t_trade_calculated ADD COLUMN stoploss REAL CHECK (stoploss >= 0);",
-            ).map_err(db_error)?;
-            transaction
-                .pragma_update(None, "user_version", 4)
-                .map_err(db_error)?;
-            transaction.commit().map_err(db_error)?;
-        }
-        if version == 3
-        {
-            let transaction = connection.transaction().map_err(db_error)?;
-            transaction.execute_batch(
-                "ALTER TABLE t_trade_calculated ADD COLUMN risk_percent REAL CHECK (risk_percent >= 0);
-                 ALTER TABLE t_trade_calculated ADD COLUMN risk_pool REAL CHECK (risk_pool >= 0);
-                 ALTER TABLE t_trade_calculated ADD COLUMN stoploss REAL CHECK (stoploss >= 0);
-                 UPDATE t_trade_calculated SET
-                     risk_percent = (SELECT risk_percent FROM t_trade WHERE t_trade.trade_calculated_id = t_trade_calculated.trade_calculated_id),
-                     risk_pool = (SELECT risk_pool FROM t_trade WHERE t_trade.trade_calculated_id = t_trade_calculated.trade_calculated_id),
-                     stoploss = (SELECT stop_loss FROM t_trade WHERE t_trade.trade_calculated_id = t_trade_calculated.trade_calculated_id);
-                 ALTER TABLE t_trade DROP COLUMN risk_percent;
-                 ALTER TABLE t_trade DROP COLUMN risk_pool;
-                 ALTER TABLE t_trade DROP COLUMN stop_loss;",
-            ).map_err(db_error)?;
-            transaction.pragma_update(None, "user_version", 4).map_err(db_error)?;
-            transaction.commit().map_err(db_error)?;
         }
         Ok(Self { connection })
     }
@@ -269,7 +205,7 @@ impl Store
                 "SELECT t.trade_id, p.name, t.date_buy, COALESCE(t.date_sell, ''),
                     t.is_long, t.shares_buy, t.price_buy, t.price_sell,
                     cost.commission_buy, cost.tax_buy, cost.commission_sell,
-                    cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss,
+                    cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss, calc.profit_loss_total,
                     t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual,
                     calc.risk_percent, calc.risk_pool, calc.stoploss
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
@@ -296,12 +232,12 @@ impl Store
                     other_costs: row.get(12)?,
                     initial_risk: row.get(13)?,
                     profit_loss: row.get(14)?,
-                    exchange_rate_buy: row.get(15)?,
-                    exchange_rate_sell: row.get(16)?,
-                    actual_risk: row.get(17)?,
-                    risk_percent: row.get(18)?,
-                    risk_pool: row.get(19)?,
-                    stoploss: row.get(20)?,
+                    profit_loss_total: row.get(15)?,
+                    exchange_rate_buy: row.get(16)?,
+                    exchange_rate_sell: row.get(17)?,
+                    actual_risk: row.get(18)?,
+                    risk_percent: row.get(19)?,
+                    risk_pool: row.get(20)?,
                 })
             })
             .map_err(db_error)?;
@@ -428,9 +364,9 @@ impl Store
                     trade.is_long, trade.quantity, if profit_loss.is_some() { trade.quantity } else { 0.0 },
                     trade.buy_price, trade.sell_price, trade.exchange_rate_buy, trade.exchange_rate_sell]
         ).map_err(db_error)?;
-        if let Some(profit_loss) = profit_loss
+        if let Some(profit_loss_total) = profit_loss_total
         {
-            record_pool_profit_loss(&transaction, profit_loss)?;
+            record_pool_profit_loss(&transaction, profit_loss_total)?;
         }
         transaction.commit().map_err(db_error)?;
         Ok(())

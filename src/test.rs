@@ -177,7 +177,7 @@ fn persists_relations_and_rejects_unknown_trade()
         .unwrap();
     let journal = store.load().unwrap();
     assert_eq!(journal.trades[0].r_multiple(), Some(2.0));
-    assert_eq!(journal.pool_value, Some(75004.0));
+    assert!((journal.pool_value.unwrap() - 75001.15).abs() < 1e-10);
     let saved_costs: (f64, f64, f64) = store
         .connection
         .query_row(
@@ -358,7 +358,7 @@ fn calculates_fractional_short_trade_with_absolute_costs()
     let journal = store.load().unwrap();
     assert!((journal.trades[0].profit_loss.unwrap() - 5.1).abs() < 1e-10);
     assert!((journal.trades[0].r_multiple().unwrap() - 3.4).abs() < 1e-10);
-    assert!((journal.pool_value.unwrap() - 75005.1).abs() < 1e-10);
+    assert!((journal.pool_value.unwrap() - 75004.2).abs() < 1e-10);
     let net: f64 = store
         .connection
         .query_row(

@@ -383,7 +383,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
         .iter()
         .filter_map(|trade| trade.r_multiple())
         .collect();
-    let total_pl: f64 = closed.iter().filter_map(|trade| trade.profit_loss).sum();
+    let total_pl: f64 = closed.iter().filter_map(|trade| trade.profit_loss_total).sum();
     window.set_trade_count(closed.len().to_string().into());
     window.set_win_rate(
         if closed.is_empty()
@@ -461,7 +461,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
                 .unwrap_or_else(|| "—".into())
                 .into(),
             profit: trade
-                .profit_loss
+                .profit_loss_total
                 .map(|n| format!("{n:+.2}"))
                 .unwrap_or_else(|| "—".into())
                 .into(),
