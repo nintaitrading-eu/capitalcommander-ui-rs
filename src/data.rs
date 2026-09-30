@@ -153,10 +153,11 @@ impl Store
                     .execute_batch(include_str!("../migrations/0001_initial.sql"))
                     .map_err(db_error)?;
                 transaction
-                    .pragma_update(None, "user_version", 0)
+                    .pragma_update(None, "user_version", 1)
                     .map_err(db_error)?;
                 transaction.commit().map_err(db_error)?;
-            }
+            },
+            1 => {},
             other => return Err(format!("Unsupported database schema version {other}")),
         }
         Ok(Self { connection })

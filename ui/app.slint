@@ -218,7 +218,6 @@ export component AppWindow inherits Window
  *******************************************************************************/
             if root.page == "Journal": VerticalBox
             {
-                spacing: 3px;
                 HorizontalBox
                 {
                     Text { text: root.editing-trade-id == 0 ? "Log trade" : "Edit trade #" + root.editing-trade-id; color: root.accent; font-size: 17px; font-weight: 600; }
@@ -248,7 +247,6 @@ export component AppWindow inherits Window
                 }
                 HorizontalBox
                 {
-                    spacing: 3px;
                     VerticalBox
                     {
                         Text { text: "Product name"; color: root.secondary; }
@@ -277,7 +275,6 @@ export component AppWindow inherits Window
                 }
                 HorizontalBox
                 {
-                    spacing: 3px;
                     VerticalBox
                     {
                         Text { text: "Buy price"; color: root.secondary; }
@@ -301,7 +298,6 @@ export component AppWindow inherits Window
                 }
                 HorizontalBox
                 {
-                    spacing: 3px;
                     VerticalBox
                     {
                         Text { text: "Commission buy"; color: root.secondary; }
@@ -332,7 +328,6 @@ export component AppWindow inherits Window
                         Text { text: "Risk %"; color: root.secondary; }
                         risk := LineEdit { placeholder-text: "Percent of pool"; }
                     }
-                    Rectangle { horizontal-stretch: 1; }
                 }
                 Button
                 {
@@ -513,7 +508,7 @@ export component AppWindow inherits Window
             Text { text: "Add product"; color: root.accent; font-size: 17px; font-weight: 600; }
             HorizontalBox
             {
-                spacing: 8px;
+                spacing: 3px;
                 VerticalBox
                 {
                     Text { text: "Name"; color: root.secondary; }
@@ -539,12 +534,12 @@ export component AppWindow inherits Window
                         current-value: "cfd other non-share";
                     }
                 }
-                Button
+            }
+            Button
+            {
+                text: "Add product"; clicked =>
                 {
-                    text: "Add product"; clicked =>
-                    {
-                        root.save-product(product-name.text, product-description.text, product-currency.current-value, product-market.current-value);
-                    }
+                    root.save-product(product-name.text, product-description.text, product-currency.current-value, product-market.current-value);
                 }
             }
             Text { text: "Product catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
