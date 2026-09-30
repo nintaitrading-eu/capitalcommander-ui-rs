@@ -1,4 +1,7 @@
-use libcalculatorfinance::{calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple, convert_from_orig};
+use libcalculatorfinance::{
+    calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple, convert_from_orig,
+    TradeType,
+};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 
@@ -572,8 +575,13 @@ fn trade_calculations(
     let profit_loss = trade.sell_date.as_ref().map(|_| {
         let buy_price = convert_from_orig(trade.buy_price, trade.exchange_rate_buy);
         let sell_price = convert_from_orig(trade.sell_price, trade.exchange_rate_sell);
-        let (entry, exit) = trade_prices(trade.is_long, buy_price, sell_price);
-        calculate_profit_loss(entry * trade.quantity, 1, exit * trade.quantity, 1)
+        calculate_profit_loss(
+            buy_price * trade.quantity,
+            1,
+            sell_price * trade.quantity,
+            1,
+            trade_type(trade.is_long),
+        )
     });
     if profit_loss.is_some_and(|value| !value.is_finite())
     {
@@ -609,15 +617,15 @@ fn trade_calculations(
     Ok((profit_loss, profit_loss_total, r_multiple))
 }
 
-fn trade_prices(is_long: bool, buy_price: f64, sell_price: f64) -> (f64, f64)
+fn trade_type(is_long: bool) -> TradeType
 {
     if is_long
     {
-        (buy_price, sell_price)
+        TradeType::Long
     }
     else
     {
-        (sell_price, buy_price)
+        TradeType::Short
     }
 }
 
@@ -639,18 +647,18 @@ fn net_profit_loss(
 {
     let buy_price = convert_from_orig(buy_price, exchange_rate_buy);
     let sell_price = convert_from_orig(sell_price, exchange_rate_sell);
-    let (entry, exit) = trade_prices(is_long, buy_price, sell_price);
     // The library accepts integer shares and percentage taxes. Use one share at the
     // full position value, and pass the database's absolute taxes as fixed costs.
     let result = calculate_profit_loss_total(
-        entry * quantity,
+        buy_price * quantity,
         1,
         0.0,
         commission_buy + tax_buy,
-        exit * quantity,
+        sell_price * quantity,
         1,
         0.0,
         commission_sell + tax_sell + other_costs + financing_total,
+        trade_type(is_long),
     );
     if !result.is_finite()
     {
