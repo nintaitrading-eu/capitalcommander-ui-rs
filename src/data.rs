@@ -16,6 +16,14 @@ pub struct Product
 }
 
 #[derive(Clone, Debug)]
+pub struct Market
+{
+    pub code: String,
+    pub name: String,
+    pub country: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct Trade
 {
     pub id: i64,
@@ -123,6 +131,7 @@ pub struct NewFinancing
 pub struct Journal
 {
     pub products: Vec<Product>,
+    pub markets: Vec<Market>,
     pub trades: Vec<Trade>,
     pub financing: Vec<Financing>,
     pub pool_value: Option<f64>,
@@ -174,6 +183,24 @@ impl Store
             )
             .optional()
             .map_err(db_error)?;
+        let mut markets = Vec::new();
+        let mut statement = self
+            .connection
+            .prepare("SELECT code, name, country FROM t_market WHERE is_deleted = 0 ORDER BY code COLLATE NOCASE")
+            .map_err(db_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(Market {
+                    code: row.get(0)?,
+                    name: row.get(1)?,
+                    country: row.get(2)?,
+                })
+            })
+            .map_err(db_error)?;
+        for row in rows
+        {
+            markets.push(row.map_err(db_error)?);
+        }
         let mut products = Vec::new();
         let mut statement = self
             .connection
@@ -278,10 +305,32 @@ impl Store
         }
         Ok(Journal {
             products,
+            markets,
             trades,
             financing,
             pool_value,
         })
+    }
+
+    pub fn add_market(&mut self, code: &str, name: &str, country: &str) -> Result<(), String>
+    {
+        let code = code.trim();
+        let name = name.trim();
+        if code.is_empty()
+        {
+            return Err("Market code is required".into());
+        }
+        if name.is_empty()
+        {
+            return Err("Market name is required".into());
+        }
+        self.connection
+            .execute(
+                "INSERT INTO t_market(code, name, country) VALUES (?1, ?2, ?3)",
+                params![code, name, country.trim()],
+            )
+            .map_err(db_error)?;
+        Ok(())
     }
 
     pub fn add_product(

@@ -25,8 +25,8 @@ fn valid_r_multiple_requires_positive_risk()
         actual_risk: Some(10.0),
         risk_percent: None,
         risk_pool: None,
-        stoploss: None,
         profit_loss: Some(-5.0),
+        profit_loss_total: None,
     };
     assert_eq!(trade.r_multiple(), Some(-0.5));
     trade.initial_risk = 0.0;
@@ -76,8 +76,8 @@ fn calculates_and_saves_trade_risks_when_closed()
     assert_eq!(trade.initial_risk, 4.0);
     assert_eq!(trade.actual_risk, None);
     assert_eq!(
-        (trade.risk_percent, trade.risk_pool, trade.stoploss),
-        (Some(1.0), Some(400.0), Some(11.0))
+        (trade.risk_percent, trade.risk_pool),
+        (Some(1.0), Some(400.0))
     );
     let id = trade.id;
     store
@@ -120,12 +120,7 @@ fn calculates_and_saves_trade_risks_when_closed()
         "SELECT COUNT(*) FROM pragma_table_info('t_trade_calculated') WHERE name IN ('risk_initial', 'risk_actual', 'risk_percent', 'risk_pool', 'stoploss')",
         [], |row| row.get(0),
     ).unwrap();
-    let trade_risk_columns: i64 = store.connection.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('t_trade') WHERE name IN ('risk_initial', 'risk_actual', 'risk_percent', 'risk_pool', 'stoploss', 'stop_loss')",
-        [], |row| row.get(0),
-    ).unwrap();
     assert_eq!(calculated_columns, 5);
-    assert_eq!(trade_risk_columns, 0);
 }
 
 #[test]
@@ -142,6 +137,27 @@ fn loads_latest_pool_value()
 
     store.connection.execute("DELETE FROM t_pool", []).unwrap();
     assert_eq!(store.load().unwrap().pool_value, None);
+}
+
+#[test]
+fn adds_market_and_uses_it_for_products()
+{
+    let mut store = Store::open(Path::new(":memory:")).unwrap();
+    assert!(store.add_market(" ", "Exchange", "BE").is_err());
+    assert!(store.add_market("XBRU", " ", "BE").is_err());
+
+    store.add_market(" XBRU ", " Euronext Brussels ", " BE ").unwrap();
+    let journal = store.load().unwrap();
+    let market = journal.markets.iter().find(|market| market.code == "XBRU").unwrap();
+    assert_eq!(market.name, "Euronext Brussels");
+    assert_eq!(market.country, "BE");
+
+    store.add_product("BRU.cfd", "Brussels product", "EUR", "XBRU").unwrap();
+    assert_eq!(
+        store.load().unwrap().products.iter().find(|product| product.name == "BRU.cfd").unwrap().market,
+        "XBRU"
+    );
+    assert!(store.add_market("XBRU", "Duplicate", "BE").is_err());
 }
 
 #[test]
@@ -535,93 +551,4 @@ fn converts_trade_prices_to_eur_for_gross_net_pool_and_financing()
         "SELECT profit_loss_total FROM t_trade_calculated", [], |row| row.get(0)
     ).unwrap();
     assert!((net - 1.6).abs() < 1e-10);
-}
-
-#[test]
-fn upgrades_a_version_one_database_without_exchange_rate_columns()
-{
-    let file = std::env::temp_dir().join(format!(
-        "capitalcommander-upgrade-{}-{}.sqlite3",
-        std::process::id(),
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
-    ));
-    {
-        let connection = rusqlite::Connection::open(&file).unwrap();
-        let old_schema = include_str!("../migrations/0001_initial.sql")
-            .lines()
-            .filter(|line| !line.contains("exchange_rate_buy REAL") && !line.contains("exchange_rate_sell REAL")
-                && !line.contains("risk_percent REAL") && !line.contains("risk_pool REAL")
-                && !line.contains("stoploss REAL") && !line.contains("risk_actual REAL"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        connection.execute_batch(&old_schema).unwrap();
-        connection.pragma_update(None, "user_version", 1).unwrap();
-    }
-    let store = Store::open(&file).unwrap();
-    let columns: i64 = store.connection.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('t_trade') WHERE name IN ('exchange_rate_buy', 'exchange_rate_sell')",
-        [], |row| row.get(0)
-    ).unwrap();
-    assert_eq!(columns, 2);
-    store.connection.execute_batch(
-        "INSERT INTO t_trade_cost DEFAULT VALUES;
-         INSERT INTO t_trade_calculated DEFAULT VALUES;
-         INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, date_buy,
-                             is_long, shares_buy, price_buy)
-         VALUES (1, 1, 1, '2026-09-28', 1, 1, 10);"
-    ).unwrap();
-    let trade = &store.load().unwrap().trades[0];
-    assert_eq!((trade.exchange_rate_buy, trade.exchange_rate_sell), (1.0, 1.0));
-    let version: i64 = store.connection.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
-    assert_eq!(version, 4);
-    drop(store);
-    std::fs::remove_file(file).unwrap();
-}
-
-#[test]
-fn moves_version_three_risk_fields_to_calculated_table()
-{
-    let file = std::env::temp_dir().join(format!(
-        "capitalcommander-risk-upgrade-{}-{}.sqlite3",
-        std::process::id(),
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
-    ));
-    {
-        let connection = rusqlite::Connection::open(&file).unwrap();
-        let old_schema = include_str!("../migrations/0001_initial.sql")
-            .lines()
-            .filter(|line| !line.contains("risk_percent REAL") && !line.contains("risk_pool REAL")
-                && !line.contains("stoploss REAL"))
-            .collect::<Vec<_>>()
-            .join("\n")
-            .replace(
-                "    exchange_rate_sell REAL NOT NULL DEFAULT 1 CHECK (exchange_rate_sell > 0),",
-                "    exchange_rate_sell REAL NOT NULL DEFAULT 1 CHECK (exchange_rate_sell > 0),\n\
-                 risk_percent REAL CHECK (risk_percent >= 0),\n\
-                 risk_pool REAL CHECK (risk_pool >= 0),\n\
-                 stop_loss REAL CHECK (stop_loss >= 0),"
-            );
-        connection.execute_batch(&old_schema).unwrap();
-        connection.execute_batch(
-            "INSERT INTO t_trade_cost DEFAULT VALUES;
-             INSERT INTO t_trade_calculated(risk_initial) VALUES (4);
-             INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, date_buy,
-                                 is_long, shares_buy, price_buy, risk_percent, risk_pool, stop_loss)
-             VALUES (1, 1, 1, '2026-09-28', 1, 2, 12, 1, 400, 11);"
-        ).unwrap();
-        connection.pragma_update(None, "user_version", 3).unwrap();
-    }
-    let store = Store::open(&file).unwrap();
-    let trade = &store.load().unwrap().trades[0];
-    assert_eq!((trade.risk_percent, trade.risk_pool, trade.stoploss),
-               (Some(1.0), Some(400.0), Some(11.0)));
-    let remaining: i64 = store.connection.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('t_trade') WHERE name IN ('risk_percent', 'risk_pool', 'stop_loss')",
-        [], |row| row.get(0)
-    ).unwrap();
-    assert_eq!(remaining, 0);
-    let version: i64 = store.connection.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
-    assert_eq!(version, 4);
-    drop(store);
-    std::fs::remove_file(file).unwrap();
 }

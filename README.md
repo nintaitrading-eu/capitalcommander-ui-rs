@@ -8,7 +8,7 @@ A Slint desktop CFD trading journal using a local SQLite database. The UI keeps 
 cargo run
 ```
 
-The app creates `capitalcommander.sqlite3` in the current directory on first run. Pass a database path as the first argument to use another file. The spreadsheet is an example only and is never opened. The database begins with a small CFD product catalog adapted from `capitalcommander-api-rs`; add more products under **Admin → Products**.
+The app creates `capitalcommander.sqlite3` in the current directory on first run. Pass a database path as the first argument to use another file. The spreadsheet is an example only and is never opened. The database begins with a small CFD product catalog adapted from `capitalcommander-api-rs`; add more products under **Admin → Products** and markets under **Admin → Markets**.
 
 The SQLite migration in `migrations/0001_initial.sql` adapts the API's Diesel tables for product types, currencies, markets, products, trade costs, trades, and calculated trade values. It adds financing entries linked to trades. Foreign keys and schema versioning are enabled. New trades and financing entries are saved immediately.
 

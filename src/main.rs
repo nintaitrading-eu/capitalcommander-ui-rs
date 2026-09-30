@@ -28,6 +28,7 @@ fn main() -> Result<(), slint::PlatformError>
     let window = AppWindow::new()?;
     window.set_source_label(database_path.display().to_string().into());
     set_products(&window, &journal.borrow());
+    set_markets(&window, &journal.borrow());
     refresh(&window, &journal.borrow(), "All products");
     window.set_status(
         format!(
@@ -326,6 +327,29 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_save_market(move |code, name, country| {
+        if let Some(window) = weak.upgrade()
+        {
+            let result = (|| -> Result<(), String> {
+                database.borrow_mut().add_market(&code, &name, &country)?;
+                *model.borrow_mut() = database.borrow().load()?;
+                Ok(())
+            })();
+            match result
+            {
+                Ok(()) =>
+                {
+                    set_markets(&window, &model.borrow());
+                    window.set_status("Market saved".into());
+                }
+                Err(error) => window.set_status(error.into()),
+            }
+        }
+    });
+
     window.on_quit(|| {
         let _ = slint::quit_event_loop();
     });
@@ -351,6 +375,23 @@ fn set_products(window: &AppWindow, journal: &Journal)
         })
         .collect();
     window.set_product_details(ModelRc::from(Rc::new(VecModel::from(details))));
+}
+
+fn set_markets(window: &AppWindow, journal: &Journal)
+{
+    window.set_market_codes(strings(
+        journal.markets.iter().map(|market| market.code.clone()).collect(),
+    ));
+    let details: Vec<_> = journal
+        .markets
+        .iter()
+        .map(|market| MarketRow {
+            code: market.code.clone().into(),
+            name: market.name.clone().into(),
+            country: market.country.clone().into(),
+        })
+        .collect();
+    window.set_market_details(ModelRc::from(Rc::new(VecModel::from(details))));
 }
 
 fn strings(values: Vec<String>) -> ModelRc<SharedString>

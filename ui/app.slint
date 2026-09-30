@@ -46,6 +46,13 @@ export struct ProductRow
     market: string,
 }
 
+export struct MarketRow
+{
+    code: string,
+    name: string,
+    country: string,
+}
+
 export component AppWindow inherits Window
 {
 
@@ -78,6 +85,8 @@ export component AppWindow inherits Window
     in-out property <string> selected-product: "All products";
     in-out property <[string]> products;
     in-out property <[ProductRow]> product-details;
+    in-out property <[string]> market-codes;
+    in-out property <[MarketRow]> market-details;
     in-out property <[string]> filters;
     in-out property <[TradeRow]> trades;
     private property <int> editing-trade-id: 0;
@@ -95,6 +104,7 @@ export component AppWindow inherits Window
     pure callback calculate-stoploss(string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
+    callback save-market(string, string, string);
     callback quit();
 
 /*******************************************************************************
@@ -123,6 +133,7 @@ export component AppWindow inherits Window
         {
             title: "Admin";
             MenuItem { title: "Products"; activated => { root.page = "Products"; } }
+            MenuItem { title: "Markets"; activated => { root.page = "Markets"; } }
         }
     }
 
@@ -530,7 +541,7 @@ export component AppWindow inherits Window
                     product-market := ComboBox
                     {
                         width: 185px;
-                        model: ["cfd other non-share", "cfd .gold", "cfd .silver", "cfd oil"];
+                        model: root.market-codes;
                         current-value: "cfd other non-share";
                     }
                 }
@@ -559,6 +570,61 @@ export component AppWindow inherits Window
                             Text { text: product.currency; width: 50px; color: root.accent; }
                             Text { text: product.market; width: 170px; color: root.secondary; }
                             Text { text: product.description; color: root.secondary; }
+                        }
+                    }
+                }
+            }
+        }
+
+/*******************************************************************************
+ * Markets
+ *******************************************************************************/
+        if root.page == "Markets": VerticalBox
+        {
+            spacing: 9px;
+            Text { text: "Add market"; color: root.accent; font-size: 17px; font-weight: 600; }
+            HorizontalBox
+            {
+                spacing: 3px;
+                VerticalBox
+                {
+                    Text { text: "Code"; color: root.secondary; }
+                    market-code := LineEdit { placeholder-text: "Market code"; }
+                }
+                VerticalBox
+                {
+                    Text { text: "Name"; color: root.secondary; }
+                    market-name := LineEdit { placeholder-text: "Market name"; }
+                }
+                VerticalBox
+                {
+                    Text { text: "Country"; color: root.secondary; }
+                    market-country := LineEdit { placeholder-text: "Country"; }
+                }
+            }
+            Button
+            {
+                text: "Add market"; clicked =>
+                {
+                    root.save-market(market-code.text, market-name.text, market-country.text);
+                }
+            }
+            Text { text: "Market catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
+            ScrollView
+            {
+                vertical-stretch: 1;
+                VerticalBox
+                {
+                    spacing: 3px;
+                    for market in root.market-details: Rectangle
+                    {
+                        height: 38px; background: root.surface; border-radius: 4px;
+                        HorizontalBox
+                        {
+                            padding: 9px; spacing: 14px;
+                            Text { text: market.code; width: 170px; color: root.primary; font-weight: 600; }
+                            Text { text: market.name; width: 240px; color: root.secondary; }
+                            Text { text: market.country; color: root.accent; }
                         }
                     }
                 }
