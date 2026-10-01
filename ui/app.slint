@@ -1,4 +1,30 @@
-import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Palette } from "std-widgets.slint";
+import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Palette, DatePickerPopup } from "std-widgets.slint";
+
+component DateField inherits HorizontalBox {
+    in-out property <string> value;
+    spacing: 2px;
+
+    pure function two-digits(number: int) -> string {
+        return number < 10 ? "0" + number : "" + number;
+    }
+
+    Button {
+        width: 110px;
+        text: root.value == "" ? "Select date" : root.value;
+        clicked => { picker.show(); }
+    }
+    Button {
+        text: "×";
+        enabled: root.value != "";
+        clicked => { root.value = ""; }
+    }
+    picker := DatePickerPopup {
+        accepted(date) => {
+            root.value = date.year + "-" + root.two-digits(date.month) + "-" + root.two-digits(date.day);
+            picker.date = date;
+        }
+    }
+}
 
 export struct TradeRow
 {
@@ -182,9 +208,9 @@ export component AppWindow inherits Window
             if root.page != "Trade costs" && root.page != "Journal": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
             if root.page == "Journal": Text { width: 120px; font-size: 24px; vertical-alignment: center; color: root.aqua; text: root.current-pool; }
             if root.page == "Journal": Text { text: "Buy date"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Journal": LineEdit { width: 110px; placeholder-text: "YYYY-MM-DD"; text <=> root.journal-draft-from; }
+            if root.page == "Journal": DateField { value <=> root.journal-draft-from; }
             if root.page == "Journal": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Journal": LineEdit { width: 110px; placeholder-text: "YYYY-MM-DD"; text <=> root.journal-draft-to; }
+            if root.page == "Journal": DateField { value <=> root.journal-draft-to; }
             if root.page == "Journal": Button { text: "Apply"; clicked => { root.filter-journal(root.journal-draft-from, root.journal-draft-to); } }
             if root.page == "Journal": Button
             {
@@ -196,9 +222,9 @@ export component AppWindow inherits Window
                 }
             }
             if root.page == "Trade costs": Text { text: "Buy date"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Trade costs": LineEdit { width: 110px; placeholder-text: "YYYY-MM-DD"; text <=> root.costs-draft-from; }
+            if root.page == "Trade costs": DateField { value <=> root.costs-draft-from; }
             if root.page == "Trade costs": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Trade costs": LineEdit { width: 110px; placeholder-text: "YYYY-MM-DD"; text <=> root.costs-draft-to; }
+            if root.page == "Trade costs": DateField { value <=> root.costs-draft-to; }
             if root.page == "Trade costs": Button { text: "Apply"; clicked => { root.filter-trade-costs(root.costs-draft-from, root.costs-draft-to); } }
             if root.page == "Trade costs": Button
             {
@@ -372,8 +398,8 @@ export component AppWindow inherits Window
                         {
                             root.editing-trade-id = 0;
                             trade-side.current-value = "Long";
-                            date-buy.text = "";
-                            date-sell.text = "";
+                            date-buy.value = "";
+                            date-sell.value = "";
                             quantity.text = "1";
                             price-buy.text = "0";
                             price-sell.text = "0";
@@ -404,12 +430,12 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Buy date"; color: root.secondary; }
-                        date-buy := LineEdit { placeholder-text: "YYYY-MM-DD"; }
+                        date-buy := DateField { }
                     }
                     VerticalBox
                     {
                         Text { text: "Sell date"; color: root.secondary; }
-                        date-sell := LineEdit { placeholder-text: "YYYY-MM-DD"; }
+                        date-sell := DateField { }
                     }
                     VerticalBox
                     {
@@ -478,14 +504,14 @@ export component AppWindow inherits Window
                     text: root.editing-trade-id == 0 ? "Log trade" : "Save changes"; clicked =>
                     {
                         if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
-                            date-buy.text, date-sell.text, quantity.text, price-buy.text,
+                            date-buy.value, date-sell.value, quantity.text, price-buy.text,
                             price-sell.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, cost-other.text,
                             risk.text, root.trade-pool)
                         {
                             root.editing-trade-id = 0;
                             trade-side.current-value = "Long";
-                            date-buy.text = "";
-                            date-sell.text = "";
+                            date-buy.value = "";
+                            date-sell.value = "";
                             quantity.text = "1";
                             price-buy.text = "0";
                             price-sell.text = "0";
@@ -551,8 +577,8 @@ export component AppWindow inherits Window
                                     root.editing-trade-id = trade.id;
                                     trade-product.current-value = trade.product;
                                     trade-side.current-value = trade.side;
-                                    date-buy.text = trade.date-buy;
-                                    date-sell.text = trade.date-sell;
+                                    date-buy.value = trade.date-buy;
+                                    date-sell.value = trade.date-sell;
                                     quantity.text = trade.edit-quantity;
                                     price-buy.text = trade.price-buy;
                                     price-sell.text = trade.price-sell;
