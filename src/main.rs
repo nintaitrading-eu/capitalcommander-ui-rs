@@ -190,7 +190,7 @@ fn main() -> Result<(), slint::PlatformError>
                         cost_other,
                         risk_initial,
                         risk_percent,
-                        trade_pool,
+                        trade_pool: if trade_id == 0 { None } else { trade_pool },
                     };
                     if trade_id == 0
                     {

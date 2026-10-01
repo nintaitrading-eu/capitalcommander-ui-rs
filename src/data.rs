@@ -162,7 +162,7 @@ impl Store
                     .execute_batch(include_str!("../migrations/0001_initial.sql"))
                     .map_err(db_error)?;
                 transaction
-                    .pragma_update(None, "user_version", 1)
+                    .pragma_update(None, "user_version", 2)
                     .map_err(db_error)?;
                 transaction.commit().map_err(db_error)?;
             },
@@ -235,10 +235,11 @@ impl Store
                     cost.commission_buy, cost.tax_buy, cost.commission_sell,
                     cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss, calc.profit_loss_total,
                     t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual,
-                    calc.risk_percent, calc.trade_pool, calc.stoploss
+                    calc.risk_percent, pool.pool_value
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
              JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
              JOIN t_trade_calculated calc ON calc.trade_calculated_id = t.trade_calculated_id
+             JOIN t_pool pool ON pool.pool_id = t.pool_id
              WHERE t.is_deleted = 0 ORDER BY t.trade_id",
             )
             .map_err(db_error)?;
@@ -388,9 +389,22 @@ impl Store
             .optional()
             .map_err(db_error)?
             .ok_or("Select a product by name")?;
-        let (stoploss, risk_initial, risk_actual, profit_loss, profit_loss_total, r_multiple) =
-            trade_calculations(&trade, 0.0)?;
         let transaction = self.connection.transaction().map_err(db_error)?;
+        let pool_value = match trade.trade_pool
+        {
+            Some(value) => value,
+            None => transaction.query_row(
+                "SELECT pool_value FROM t_pool ORDER BY pool_id DESC LIMIT 1", [], |row| row.get(0)
+            ).optional().map_err(db_error)?.ok_or("No pool balance exists")?,
+        };
+        if !pool_value.is_finite() || pool_value < 0.0
+        {
+            return Err("Pool balance must be finite and nonnegative".into());
+        }
+        let (stoploss, risk_initial, risk_actual, profit_loss, profit_loss_total, r_multiple) =
+            trade_calculations(&trade, pool_value, 0.0)?;
+        transaction.execute("INSERT INTO t_pool(pool_value) VALUES (?1)", [pool_value]).map_err(db_error)?;
+        let pool_id = transaction.last_insert_rowid();
         transaction
             .execute(
                 "INSERT INTO t_trade_cost(commission_buy, tax_buy, commission_sell, tax_sell, other) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -399,18 +413,18 @@ impl Store
             .map_err(db_error)?;
         let cost_id = transaction.last_insert_rowid();
         transaction.execute(
-            "INSERT INTO t_trade_calculated(risk_initial, risk_actual, risk_percent, trade_pool, stoploss,
+            "INSERT INTO t_trade_calculated(risk_initial, risk_actual, risk_percent, stoploss,
                                               profit_loss, profit_loss_total, r_multiple)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![risk_initial, risk_actual, trade.risk_percent, trade.trade_pool, stoploss,
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![risk_initial, risk_actual, trade.risk_percent, stoploss,
                     profit_loss, profit_loss_total, r_multiple]
         ).map_err(db_error)?;
         let calculated_id = transaction.last_insert_rowid();
         transaction.execute(
-            "INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, date_buy, date_sell,
+            "INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, pool_id, date_buy, date_sell,
                                  is_long, shares_buy, shares_sell, price_buy, price_sell, exchange_rate_buy, exchange_rate_sell)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-            params![calculated_id, product_id, cost_id, trade.date_buy, trade.date_sell,
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![calculated_id, product_id, cost_id, pool_id, trade.date_buy, trade.date_sell,
                     trade.is_long, trade.quantity, if profit_loss.is_some() { trade.quantity } else { 0.0 },
                     trade.price_buy, trade.price_sell, trade.exchange_rate_buy, trade.exchange_rate_sell]
         ).map_err(db_error)?;
@@ -439,19 +453,20 @@ impl Store
             [id],
             |row| row.get(0),
         ).map_err(db_error)?;
-        let (stoploss, risk_initial, risk_actual, profit_loss, profit_loss_total, r_multiple) =
-            trade_calculations(&trade, financing_total)?;
-        let (cost_id, calculated_id): (i64, i64) = self
+        let (cost_id, calculated_id, pool_value): (i64, i64, f64) = self
             .connection
             .query_row(
-                "SELECT trade_cost_id, trade_calculated_id FROM t_trade
-             WHERE trade_id = ?1 AND is_deleted = 0 AND date_sell IS NULL",
+                "SELECT t.trade_cost_id, t.trade_calculated_id, pool.pool_value FROM t_trade t
+             JOIN t_pool pool ON pool.pool_id = t.pool_id
+             WHERE t.trade_id = ?1 AND t.is_deleted = 0 AND t.date_sell IS NULL",
                 [id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(db_error)?
             .ok_or_else(|| format!("Trade #{id} does not exist or is already closed"))?;
+        let (stoploss, risk_initial, risk_actual, profit_loss, profit_loss_total, r_multiple) =
+            trade_calculations(&trade, pool_value, financing_total)?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
@@ -499,15 +514,14 @@ impl Store
         transaction
             .execute(
                 "UPDATE t_trade_calculated SET risk_initial = ?1, risk_actual = ?2,
-             risk_percent = ?3, trade_pool = ?4, stoploss = ?5, profit_loss = ?6,
-             profit_loss_total = ?7, r_multiple = ?8,
+             risk_percent = ?3, stoploss = ?4, profit_loss = ?5,
+             profit_loss_total = ?6, r_multiple = ?7,
              date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE trade_calculated_id = ?9",
+             WHERE trade_calculated_id = ?8",
                 params![
                     risk_initial,
                     risk_actual,
                     trade.risk_percent,
-                    trade.trade_pool,
                     stoploss,
                     profit_loss,
                     profit_loss_total,
@@ -640,18 +654,18 @@ fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss_total: f64
 
 fn trade_calculations(
     trade: &NewTrade,
+    pool_value: f64,
     financing_total: f64,
 ) -> Result<(Option<f64>, f64, Option<f64>, Option<f64>, Option<f64>, Option<f64>), String>
 {
-    let stoploss = match (trade.risk_percent, trade.trade_pool)
+    let stoploss = match trade.risk_percent
     {
-        (Some(percent), Some(pool)) => Some(calculate_trade_stoploss(
-            percent, pool, trade.price_buy, trade.quantity, trade.exchange_rate_buy,
+        Some(percent) => Some(calculate_trade_stoploss(
+            percent, pool_value, trade.price_buy, trade.quantity, trade.exchange_rate_buy,
             trade.commission_buy + trade.commission_sell + trade.tax_buy + trade.tax_sell,
             trade.is_long,
         )?),
-        (None, None) => None,
-        _ => return Err("Risk % requires a pool value".into()),
+        None => None,
     };
     let risk_initial = if let Some(stoploss) = stoploss
     {
