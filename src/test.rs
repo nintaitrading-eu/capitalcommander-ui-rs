@@ -535,12 +535,15 @@ fn converts_trade_prices_to_eur_for_gross_net_pool_and_financing()
     assert!((net - 1.6).abs() < 1e-10);
 }
 #[test]
-fn trade_cost_date_range_accepts_open_ends_and_rejects_invalid_ranges()
+fn date_range_accepts_open_ends_and_rejects_invalid_ranges()
 {
-    assert!(super::validate_cost_dates("", "").is_ok());
-    assert!(super::validate_cost_dates("2026-09-28", "").is_ok());
-    assert!(super::validate_cost_dates("", "2026-09-28").is_ok());
-    assert!(super::validate_cost_dates("2026-09-28", "2026-09-28").is_ok());
-    assert!(super::validate_cost_dates("2026-09-29", "2026-09-28").is_err());
-    assert!(super::validate_cost_dates("2026-02-30", "").is_err());
+    assert!(super::validate_date_range("", "").is_ok());
+    assert!(super::validate_date_range("2026-09-28", "").is_ok());
+    assert!(super::validate_date_range("", "2026-09-28").is_ok());
+    assert!(super::validate_date_range("2026-09-28", "2026-09-28").is_ok());
+    assert!(super::validate_date_range("2026-09-29", "2026-09-28").is_err());
+    assert!(super::validate_date_range("2026-02-30", "").is_err());
+    assert!(super::date_in_range("2026-09-28", "2026-09-28", "2026-09-28"));
+    assert!(!super::date_in_range("2026-09-27", "2026-09-28", ""));
+    assert!(!super::date_in_range("2026-09-29", "", "2026-09-28"));
 }

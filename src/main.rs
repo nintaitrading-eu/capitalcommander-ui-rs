@@ -29,7 +29,7 @@ fn main() -> Result<(), slint::PlatformError>
     window.set_source_label(database_path.display().to_string().into());
     set_products(&window, &journal.borrow());
     set_markets(&window, &journal.borrow());
-    refresh(&window, &journal.borrow(), "All products");
+    refresh(&window, &journal.borrow());
     window.set_status(
         format!(
             "Loaded {} trades and {} financing entries",
@@ -41,10 +41,29 @@ fn main() -> Result<(), slint::PlatformError>
 
     let weak = window.as_weak();
     let model = journal.clone();
-    window.on_filter_product(move |product| {
+    window.on_filter_journal(move |from, to| {
         if let Some(window) = weak.upgrade()
         {
-            refresh(&window, &model.borrow(), &product);
+            match validate_date_range(&from, &to)
+            {
+                Ok(()) =>
+                {
+                    window.set_journal_date_from(from);
+                    window.set_journal_date_to(to);
+                    refresh(&window, &model.borrow());
+                    window.set_status("Trade journal updated".into());
+                    true
+                },
+                Err(error) =>
+                {
+                    window.set_status(error.into());
+                    false
+                },
+            }
+        }
+        else
+        {
+            false
         }
     });
 
@@ -53,7 +72,7 @@ fn main() -> Result<(), slint::PlatformError>
     window.on_filter_trade_costs(move |from, to| {
         if let Some(window) = weak.upgrade()
         {
-            match validate_cost_dates(&from, &to)
+            match validate_date_range(&from, &to)
             {
                 Ok(()) =>
                 {
@@ -125,8 +144,7 @@ fn main() -> Result<(), slint::PlatformError>
               tax_sell,
               cost_other,
               risk,
-              trade_pool,
-              filter| {
+              trade_pool| {
             if let Some(window) = weak.upgrade()
             {
                 let result = (|| -> Result<(), String> {
@@ -235,7 +253,7 @@ fn main() -> Result<(), slint::PlatformError>
                 {
                     Ok(()) =>
                     {
-                        refresh(&window, &model.borrow(), &filter);
+                        refresh(&window, &model.borrow());
                         window.set_status(
                             if trade_id == 0
                             {
@@ -320,7 +338,7 @@ fn main() -> Result<(), slint::PlatformError>
                 {
                     Ok(()) =>
                     {
-                        refresh(&window, &model.borrow(), &window.get_selected_product());
+                        refresh(&window, &model.borrow());
                         window.set_status("Financing entry saved".into());
                     }
                     Err(error) => window.set_status(error.into()),
@@ -347,7 +365,7 @@ fn main() -> Result<(), slint::PlatformError>
                 Ok(()) =>
                 {
                     set_products(&window, &model.borrow());
-                    refresh(&window, &model.borrow(), &window.get_selected_product());
+                    refresh(&window, &model.borrow());
                     window.set_status("Product saved".into());
                 }
                 Err(error) => window.set_status(error.into()),
@@ -388,10 +406,7 @@ fn main() -> Result<(), slint::PlatformError>
 fn set_products(window: &AppWindow, journal: &Journal)
 {
     let products: Vec<_> = journal.products.iter().map(|p| p.name.clone()).collect();
-    let mut filters = vec!["All products".to_string()];
-    filters.extend(products.iter().cloned());
     window.set_products(strings(products));
-    window.set_filters(strings(filters));
     let details: Vec<_> = journal
         .products
         .iter()
@@ -429,7 +444,7 @@ fn strings(values: Vec<String>) -> ModelRc<SharedString>
     )))
 }
 
-fn refresh(window: &AppWindow, journal: &Journal, product: &str)
+fn refresh(window: &AppWindow, journal: &Journal)
 {
     window.set_current_pool(
         journal
@@ -438,8 +453,11 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
             .unwrap_or_default()
             .into(),
     );
-    let matches = |trade: &&Trade| product == "All products" || trade.product == product;
-    let selected: Vec<_> = journal.trades.iter().filter(matches).collect();
+    let from = window.get_journal_date_from();
+    let to = window.get_journal_date_to();
+    let selected: Vec<_> = journal.trades.iter().filter(|trade| {
+        date_in_range(&trade.date_buy, &from, &to)
+    }).collect();
     let is_closed: Vec<_> = selected
         .iter()
         .filter(|trade| trade.profit_loss.is_some())
@@ -542,17 +560,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
         })
         .collect();
     window.set_trades(ModelRc::from(Rc::new(VecModel::from(rows))));
-    let finance: Vec<_> = journal
-        .financing
-        .iter()
-        .filter(|entry| {
-            product == "All products"
-                || journal
-                    .trades
-                    .iter()
-                    .any(|t| t.id == entry.trade_id && t.product == product)
-        })
-        .collect();
+    let finance: Vec<_> = journal.financing.iter().collect();
     let financing_total: f64 = finance.iter().map(|entry| entry.value).sum();
     window.set_financing_total(format!("{financing_total:.2}").into());
     let finance_rows: Vec<_> = finance
@@ -583,7 +591,7 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
     );
 }
 
-fn validate_cost_dates(from: &str, to: &str) -> Result<(), String>
+fn validate_date_range(from: &str, to: &str) -> Result<(), String>
 {
     check_date(from, "From date", true)?;
     check_date(to, "To date", true)?;
@@ -594,15 +602,17 @@ fn validate_cost_dates(from: &str, to: &str) -> Result<(), String>
     Ok(())
 }
 
+fn date_in_range(date: &str, from: &str, to: &str) -> bool
+{
+    (from.is_empty() || date >= from) && (to.is_empty() || date <= to)
+}
+
 fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &str)
 {
     let selected: Vec<_> = journal
         .trades
         .iter()
-        .filter(|trade| {
-            (from.is_empty() || trade.date_buy.as_str() >= from)
-                && (to.is_empty() || trade.date_buy.as_str() <= to)
-        })
+        .filter(|trade| date_in_range(&trade.date_buy, from, to))
         .collect();
     let sum = |cost: fn(&Trade) -> f64| -> f64 { selected.iter().map(|trade| cost(trade)).sum() };
     let commission_buy = sum(|trade| trade.commission_buy);
