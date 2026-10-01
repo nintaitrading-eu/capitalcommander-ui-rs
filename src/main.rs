@@ -84,20 +84,20 @@ fn main() -> Result<(), slint::PlatformError>
         move |trade_id,
               product,
               side,
-              buy_date,
-              sell_date,
+              date_buy,
+              date_sell,
               quantity,
-              buy_price,
-              sell_price,
+              price_buy,
+              price_sell,
               exchange_rate_buy,
               exchange_rate_sell,
               commission_buy,
               tax_buy,
               commission_sell,
               tax_sell,
-              other_costs,
+              cost_other,
               risk,
-              risk_pool,
+              trade_pool,
               filter| {
             if let Some(window) = weak.upgrade()
             {
@@ -111,22 +111,22 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         return Err("Select a product by name".into());
                     }
-                    check_date(&buy_date, "Buy date", false)?;
-                    check_date(&sell_date, "Sell date", true)?;
-                    if !sell_date.is_empty() && sell_date < buy_date
+                    check_date(&date_buy, "Buy date", false)?;
+                    check_date(&date_sell, "Sell date", true)?;
+                    if !date_sell.is_empty() && date_sell < date_buy
                     {
                         return Err("Sell date must be on or after buy date".into());
                     }
                     let quantity = positive(&quantity, "Quantity")?;
-                    let buy_price = nonnegative(&buy_price, "Buy price")?;
-                    let sell_price = nonnegative(&sell_price, "Sell price")?;
+                    let price_buy = nonnegative(&price_buy, "Buy price")?;
+                    let price_sell = nonnegative(&price_sell, "Sell price")?;
                     let exchange_rate_buy = positive(&exchange_rate_buy, "Buy exchange rate")?;
                     let exchange_rate_sell = positive(&exchange_rate_sell, "Sell exchange rate")?;
                     let commission_buy = nonnegative(&commission_buy, "Commission buy")?;
                     let tax_buy = nonnegative(&tax_buy, "Tax buy")?;
                     let commission_sell = nonnegative(&commission_sell, "Commission sell")?;
                     let tax_sell = nonnegative(&tax_sell, "Tax sell")?;
-                    let other_costs = nonnegative(&other_costs, "Other costs")?;
+                    let cost_other = nonnegative(&cost_other, "Other costs")?;
                     let risk_percent = if risk.trim().is_empty()
                     {
                         None
@@ -135,23 +135,23 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         Some(nonnegative(&risk, "Risk %")?)
                     };
-                    let risk_pool = if risk_percent.is_none() || risk_pool.trim().is_empty()
+                    let trade_pool = if risk_percent.is_none() || trade_pool.trim().is_empty()
                     {
                         None
                     }
                     else
                     {
-                        Some(nonnegative(&risk_pool, "Risk pool")?)
+                        Some(nonnegative(&trade_pool, "Risk pool")?)
                     };
-                    if trade_id == 0 && (risk_percent.is_none() || risk_pool.is_none())
+                    if trade_id == 0 && (risk_percent.is_none() || trade_pool.is_none())
                     {
                         return Err("Enter risk % and a pool value".into());
                     }
-                    if risk_percent.is_some() != risk_pool.is_some()
+                    if risk_percent.is_some() != trade_pool.is_some()
                     {
                         return Err("Risk % requires a pool value".into());
                     }
-                    let initial_risk = if trade_id == 0
+                    let risk_initial = if trade_id == 0
                     {
                         0.0
                     }
@@ -162,24 +162,24 @@ fn main() -> Result<(), slint::PlatformError>
                             .trades
                             .iter()
                             .find(|trade| trade.id == trade_id as i64)
-                            .map(|trade| trade.initial_risk)
+                            .map(|trade| trade.risk_initial)
                             .ok_or("Selected trade no longer exists")?
                     };
                     let is_long = side == "Long";
                     let trade = NewTrade {
                         product: product.into(),
-                        buy_date: buy_date.into(),
-                        sell_date: if sell_date.is_empty()
+                        date_buy: date_buy.into(),
+                        date_sell: if date_sell.is_empty()
                         {
                             None
                         }
                         else
                         {
-                            Some(sell_date.into())
+                            Some(date_sell.into())
                         },
                         is_long,
-                        buy_price,
-                        sell_price,
+                        price_buy,
+                        price_sell,
                         exchange_rate_buy,
                         exchange_rate_sell,
                         quantity,
@@ -187,10 +187,10 @@ fn main() -> Result<(), slint::PlatformError>
                         tax_buy,
                         commission_sell,
                         tax_sell,
-                        other_costs,
-                        initial_risk,
+                        cost_other,
+                        risk_initial,
                         risk_percent,
-                        risk_pool,
+                        trade_pool,
                     };
                     if trade_id == 0
                     {
@@ -412,28 +412,28 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
     );
     let matches = |trade: &&Trade| product == "All products" || trade.product == product;
     let selected: Vec<_> = journal.trades.iter().filter(matches).collect();
-    let closed: Vec<_> = selected
+    let is_closed: Vec<_> = selected
         .iter()
         .filter(|trade| trade.profit_loss.is_some())
         .collect();
-    let wins = closed
+    let wins = is_closed
         .iter()
         .filter(|trade| trade.profit_loss.unwrap_or(0.0) >= 0.0)
         .count();
-    let r_values: Vec<_> = closed
+    let r_values: Vec<_> = is_closed
         .iter()
         .filter_map(|trade| trade.r_multiple())
         .collect();
-    let total_pl: f64 = closed.iter().filter_map(|trade| trade.profit_loss_total).sum();
-    window.set_trade_count(closed.len().to_string().into());
+    let total_pl: f64 = is_closed.iter().filter_map(|trade| trade.profit_loss_total).sum();
+    window.set_trade_count(is_closed.len().to_string().into());
     window.set_win_rate(
-        if closed.is_empty()
+        if is_closed.is_empty()
         {
             "-".into()
         }
         else
         {
-            format!("{:.1}%", 100.0 * wins as f64 / closed.len() as f64).into()
+            format!("{:.1}%", 100.0 * wins as f64 / is_closed.len() as f64).into()
         },
     );
     window.set_expectancy(
@@ -456,48 +456,48 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
         .rev()
         .map(|trade| TradeRow {
             id: trade.id as i32,
-            closed: trade.profit_loss.is_some(),
+            is_closed: trade.profit_loss.is_some(),
             product: trade.product.clone().into(),
             side: (if trade.is_long { "Long" } else { "Short" }).into(),
             dates: format!(
                 "{} → {}",
-                trade.buy_date,
-                if trade.sell_date.is_empty()
+                trade.date_buy,
+                if trade.date_sell.is_empty()
                 {
                     "open"
                 }
                 else
                 {
-                    &trade.sell_date
+                    &trade.date_sell
                 }
             )
             .into(),
-            buy_date: trade.buy_date.clone().into(),
-            sell_date: trade.sell_date.clone().into(),
+            date_buy: trade.date_buy.clone().into(),
+            date_sell: trade.date_sell.clone().into(),
             quantity: format_number(trade.quantity).into(),
             edit_quantity: trade.quantity.to_string().into(),
-            buy_price: trade.buy_price.to_string().into(),
-            sell_price: trade.sell_price.to_string().into(),
+            price_buy: trade.price_buy.to_string().into(),
+            price_sell: trade.price_sell.to_string().into(),
             exchange_rate_buy: trade.exchange_rate_buy.to_string().into(),
             exchange_rate_sell: trade.exchange_rate_sell.to_string().into(),
             commission_buy: trade.commission_buy.to_string().into(),
             tax_buy: trade.tax_buy.to_string().into(),
             commission_sell: trade.commission_sell.to_string().into(),
             tax_sell: trade.tax_sell.to_string().into(),
-            other_costs: trade.other_costs.to_string().into(),
+            cost_other: trade.cost_other.to_string().into(),
             risk_percent: trade
                 .risk_percent
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
-            risk_pool: trade
-                .risk_pool
+            trade_pool: trade
+                .trade_pool
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
-            risk_initial: format!("{:.2}", trade.initial_risk).into(),
+            risk_initial: format!("{:.2}", trade.risk_initial).into(),
             risk_actual: trade
-                .displayed_actual_risk()
+                .displayed_risk_actual()
                 .map(|value| format!("{value:.2}"))
                 .unwrap_or_else(|| "—".into())
                 .into(),

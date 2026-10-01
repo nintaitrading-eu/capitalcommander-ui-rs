@@ -3,25 +3,25 @@ import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Pal
 export struct TradeRow
 {
     id: int,
-    closed: bool,
+    is-closed: bool,
     product: string,
     side: string,
     dates: string,
-    buy-date: string,
-    sell-date: string,
+    date-buy: string,
+    date-sell: string,
     quantity: string,
     edit-quantity: string,
-    buy-price: string,
-    sell-price: string,
+    price-buy: string,
+    price-sell: string,
     exchange-rate-buy: string,
     exchange-rate-sell: string,
     commission-buy: string,
     tax-buy: string,
     commission-sell: string,
     tax-sell: string,
-    other-costs: string,
+    cost-other: string,
     risk-percent: string,
-    risk-pool: string,
+    trade-pool: string,
     risk-initial: string,
     risk-actual: string,
     profit: string,
@@ -90,7 +90,7 @@ export component AppWindow inherits Window
     in-out property <[string]> filters;
     in-out property <[TradeRow]> trades;
     private property <int> editing-trade-id: 0;
-    private property <string> risk-pool: root.current-pool;
+    private property <string> trade-pool: root.current-pool;
     in-out property <[FinancingRow]> financing;
     in-out property <string> trade-count: "0";
     in-out property <string> win-rate: "—";
@@ -176,7 +176,7 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         padding: 8px; spacing: 4px;
-                        Text { text: "CLOSED TRADES"; color: root.muted; font-size: 11px; }
+                        Text { text: "is-closed TRADES"; color: root.muted; font-size: 11px; }
                         Text { text: root.trade-count; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
@@ -219,7 +219,7 @@ export component AppWindow inherits Window
             {
                 spacing: 8px;
                 Text { text: "Expectancy = average of (trade P/L ÷ initial risk)"; color: root.primary; font-size: 17px; }
-                Text { text: "Only closed trades with a positive initial risk are included. The product selector updates all figures above."; color: root.secondary; }
+                Text { text: "Only is-closed trades with a positive initial risk are included. The product selector updates all figures above."; color: root.secondary; }
                 Text { text: "P/L is the gross price move; stoploss and initial risk are calculated from the risk percentage. Costs are stored separately."; color: root.secondary; }
                 Rectangle { vertical-stretch: 1; }
             }
@@ -239,20 +239,20 @@ export component AppWindow inherits Window
                         {
                             root.editing-trade-id = 0;
                             trade-side.current-value = "Long";
-                            buy-date.text = "";
-                            sell-date.text = "";
+                            date-buy.text = "";
+                            date-sell.text = "";
                             quantity.text = "1";
-                            buy-price.text = "0";
-                            sell-price.text = "0";
+                            price-buy.text = "0";
+                            price-sell.text = "0";
                             exchange-rate-buy.text = "1";
                             exchange-rate-sell.text = "1";
                             commission-buy.text = "0";
                             tax-buy.text = "0";
                             commission-sell.text = "0";
                             tax-sell.text = "0";
-                            other-costs.text = "0";
+                            cost-other.text = "0";
                             risk.text = "";
-                            root.risk-pool = root.current-pool;
+                            root.trade-pool = root.current-pool;
                       }
                    }
                 }
@@ -271,12 +271,12 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Buy date"; color: root.secondary; }
-                        buy-date := LineEdit { placeholder-text: "YYYY-MM-DD"; }
+                        date-buy := LineEdit { placeholder-text: "YYYY-MM-DD"; }
                     }
                     VerticalBox
                     {
                         Text { text: "Sell date"; color: root.secondary; }
-                        sell-date := LineEdit { placeholder-text: "YYYY-MM-DD"; }
+                        date-sell := LineEdit { placeholder-text: "YYYY-MM-DD"; }
                     }
                     VerticalBox
                     {
@@ -289,12 +289,12 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Buy price"; color: root.secondary; }
-                        buy-price := LineEdit { text: "0"; }
+                        price-buy := LineEdit { text: "0"; }
                     }
                     VerticalBox
                     {
                         Text { text: "Sell price"; color: root.secondary; }
-                        sell-price := LineEdit { text: "0"; }
+                        price-sell := LineEdit { text: "0"; }
                     }
                     VerticalBox
                     {
@@ -332,7 +332,7 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Other costs"; color: root.secondary; }
-                        other-costs := LineEdit { text: "0"; }
+                        cost-other := LineEdit { text: "0"; }
                     }
                     VerticalBox
                     {
@@ -345,26 +345,26 @@ export component AppWindow inherits Window
                     text: root.editing-trade-id == 0 ? "Log trade" : "Save changes"; clicked =>
                     {
                         if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
-                            buy-date.text, sell-date.text, quantity.text, buy-price.text,
-                            sell-price.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, other-costs.text,
-                            risk.text, root.risk-pool, root.selected-product)
+                            date-buy.text, date-sell.text, quantity.text, price-buy.text,
+                            price-sell.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, cost-other.text,
+                            risk.text, root.trade-pool, root.selected-product)
                         {
                             root.editing-trade-id = 0;
                             trade-side.current-value = "Long";
-                            buy-date.text = "";
-                            sell-date.text = "";
+                            date-buy.text = "";
+                            date-sell.text = "";
                             quantity.text = "1";
-                            buy-price.text = "0";
-                            sell-price.text = "0";
+                            price-buy.text = "0";
+                            price-sell.text = "0";
                             exchange-rate-buy.text = "1";
                             exchange-rate-sell.text = "1";
                             commission-buy.text = "0";
                             tax-buy.text = "0";
                             commission-sell.text = "0";
                             tax-sell.text = "0";
-                            other-costs.text = "0";
+                            cost-other.text = "0";
                             risk.text = "";
-                            root.risk-pool = root.current-pool;
+                            root.trade-pool = root.current-pool;
                         }
                     } 
                 }
@@ -377,9 +377,9 @@ export component AppWindow inherits Window
                     Text { text: "Info"; color: root.secondary; font-size: 17px; font-weight: 600; }
                     Rectangle { horizontal-stretch: 1; }
                     Text { text: "Risk input"; color: root.secondary; }
-                    Text { text: root.calculate-risk-input(root.risk-pool, risk.text); color: root.aqua; }
+                    Text { text: root.calculate-risk-input(root.trade-pool, risk.text); color: root.aqua; }
                     Text { text: "Stoploss"; color: root.secondary; }
-                    Text { text: root.calculate-stoploss(root.risk-pool, risk.text, buy-price.text, quantity.text,
+                    Text { text: root.calculate-stoploss(root.trade-pool, risk.text, price-buy.text, quantity.text,
                         exchange-rate-buy.text, commission-buy.text, tax-buy.text, commission-sell.text,
                         tax-sell.text, trade-side.current-value); color: root.aqua; }
                 }
@@ -412,26 +412,26 @@ export component AppWindow inherits Window
                             height: 40px; background: root.editing-trade-id == trade.id ? root.divider : root.surface; border-radius: 4px;
                             TouchArea
                             {
-                                enabled: !trade.closed;
+                                enabled: !trade.is-closed;
                                 clicked =>
                                 {
                                     root.editing-trade-id = trade.id;
                                     trade-product.current-value = trade.product;
                                     trade-side.current-value = trade.side;
-                                    buy-date.text = trade.buy-date;
-                                    sell-date.text = trade.sell-date;
+                                    date-buy.text = trade.date-buy;
+                                    date-sell.text = trade.date-sell;
                                     quantity.text = trade.edit-quantity;
-                                    buy-price.text = trade.buy-price;
-                                    sell-price.text = trade.sell-price;
+                                    price-buy.text = trade.price-buy;
+                                    price-sell.text = trade.price-sell;
                                     exchange-rate-buy.text = trade.exchange-rate-buy;
                                     exchange-rate-sell.text = trade.exchange-rate-sell;
                                     commission-buy.text = trade.commission-buy;
                                     tax-buy.text = trade.tax-buy;
                                     commission-sell.text = trade.commission-sell;
                                     tax-sell.text = trade.tax-sell;
-                                    other-costs.text = trade.other-costs;
+                                    cost-other.text = trade.cost-other;
                                     risk.text = trade.risk-percent;
-                                    root.risk-pool = trade.risk-pool == "" ? root.current-pool : trade.risk-pool;
+                                    root.trade-pool = trade.trade-pool == "" ? root.current-pool : trade.trade-pool;
                                 }
                             }
                             HorizontalBox
