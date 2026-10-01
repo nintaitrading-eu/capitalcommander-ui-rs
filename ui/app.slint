@@ -38,6 +38,20 @@ export struct FinancingRow
     note: string,
 }
 
+export struct TradeCostRow
+{
+    id: int,
+    product: string,
+    date-buy: string,
+    date-sell: string,
+    commission-buy: string,
+    tax-buy: string,
+    commission-sell: string,
+    tax-sell: string,
+    other: string,
+    total: string,
+}
+
 export struct ProductRow
 {
     name: string,
@@ -97,8 +111,21 @@ export component AppWindow inherits Window
     in-out property <string> expectancy: "—";
     in-out property <string> total-pl: "—";
     in-out property <string> financing-total: "—";
+    in-out property <string> costs-date-from: "";
+    in-out property <string> costs-date-to: "";
+    private property <string> costs-draft-from: "";
+    private property <string> costs-draft-to: "";
+    in-out property <[TradeCostRow]> trade-costs;
+    in-out property <string> costs-count: "0";
+    in-out property <string> costs-commission-buy: "0.00";
+    in-out property <string> costs-tax-buy: "0.00";
+    in-out property <string> costs-commission-sell: "0.00";
+    in-out property <string> costs-tax-sell: "0.00";
+    in-out property <string> costs-other: "0.00";
+    in-out property <string> costs-total: "0.00";
 
     callback filter-product(string);
+    callback filter-trade-costs(string, string) -> bool;
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     pure callback calculate-risk-input(string, string) -> string;
     pure callback calculate-stoploss(string, string, string, string, string, string, string, string, string, string) -> string;
@@ -122,6 +149,7 @@ export component AppWindow inherits Window
         {
             title: "Trade";
             MenuItem { title: "Journal"; activated => { root.page = "Journal"; } }
+            MenuItem { title: "Trade costs"; activated => { root.page = "Trade costs"; } }
             MenuItem { title: "Expectancy"; activated => { root.page = "Expectancy"; } }
         }
         Menu
@@ -149,7 +177,7 @@ export component AppWindow inherits Window
             spacing: 16px;
             Text { text: root.page; color: root.accent; font-size: 28px; font-weight: 700; }
             Rectangle { horizontal-stretch: 1; }
-            Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
+            if root.page != "Trade costs": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
             if root.page == "Journal": Text { width: 120px; font-size: 24px; vertical-alignment: center; color: root.aqua; text: root.current-pool; }
             if root.page == "Journal": Text { text: "Product"; color: root.secondary; vertical-alignment: center; }
             if root.page == "Journal": filter := ComboBox
@@ -158,6 +186,103 @@ export component AppWindow inherits Window
                 model: root.filters;
                 current-value: root.selected-product;
                 selected(value) => { root.selected-product = value; root.filter-product(value); }
+            }
+            if root.page == "Trade costs": Text { text: "Buy date"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Trade costs": LineEdit { width: 110px; placeholder-text: "YYYY-MM-DD"; text <=> root.costs-draft-from; }
+            if root.page == "Trade costs": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Trade costs": LineEdit { width: 110px; placeholder-text: "YYYY-MM-DD"; text <=> root.costs-draft-to; }
+            if root.page == "Trade costs": Button { text: "Apply"; clicked => { root.filter-trade-costs(root.costs-draft-from, root.costs-draft-to); } }
+            if root.page == "Trade costs": Button
+            {
+                text: "Clear"; clicked =>
+                {
+                    root.costs-draft-from = "";
+                    root.costs-draft-to = "";
+                    root.filter-trade-costs("", "");
+                }
+            }
+        }
+
+        if root.page == "Trade costs": VerticalBox
+        {
+            spacing: 10px;
+            Text { text: "Costs in EUR for trades opened in the selected buy date range (inclusive)."; color: root.secondary; }
+            HorizontalBox
+            {
+                spacing: 10px;
+                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox { padding: 8px; spacing: 4px;
+                        Text { text: "TRADES"; color: root.muted; font-size: 11px; }
+                        Text { text: root.costs-count; color: root.primary; font-size: 18px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox { padding: 8px; spacing: 4px;
+                        Text { text: "BUY COMMISSION"; color: root.muted; font-size: 11px; }
+                        Text { text: root.costs-commission-buy; color: root.primary; font-size: 18px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox { padding: 8px; spacing: 4px;
+                        Text { text: "BUY TAX"; color: root.muted; font-size: 11px; }
+                        Text { text: root.costs-tax-buy; color: root.primary; font-size: 18px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox { padding: 8px; spacing: 4px;
+                        Text { text: "SELL COMMISSION"; color: root.muted; font-size: 11px; }
+                        Text { text: root.costs-commission-sell; color: root.primary; font-size: 18px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox { padding: 8px; spacing: 4px;
+                        Text { text: "SELL TAX"; color: root.muted; font-size: 11px; }
+                        Text { text: root.costs-tax-sell; color: root.primary; font-size: 18px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox { padding: 8px; spacing: 4px;
+                        Text { text: "OTHER"; color: root.muted; font-size: 11px; }
+                        Text { text: root.costs-other; color: root.primary; font-size: 18px; font-weight: 700; }
+                    }
+                }
+                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox { padding: 8px; spacing: 4px;
+                        Text { text: "TOTAL COSTS"; color: root.muted; font-size: 11px; }
+                        Text { text: root.costs-total; color: root.accent; font-size: 18px; font-weight: 700; }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: root.divider; }
+            HorizontalBox { spacing: 6px;
+                Text { text: "ID"; width: 38px; color: root.muted; }
+                Text { text: "PRODUCT"; width: 125px; color: root.muted; }
+                Text { text: "BUY DATE"; width: 95px; color: root.muted; }
+                Text { text: "SELL DATE"; width: 95px; color: root.muted; }
+                Text { text: "BUY COMM."; width: 72px; color: root.muted; }
+                Text { text: "BUY TAX"; width: 72px; color: root.muted; }
+                Text { text: "SELL COMM."; width: 72px; color: root.muted; }
+                Text { text: "SELL TAX"; width: 72px; color: root.muted; }
+                Text { text: "OTHER"; width: 72px; color: root.muted; }
+                Text { text: "TOTAL"; width: 82px; color: root.muted; }
+            }
+            ScrollView { vertical-stretch: 1;
+                VerticalBox { spacing: 3px;
+                    for cost in root.trade-costs: Rectangle { height: 40px; background: root.surface; border-radius: 4px;
+                        HorizontalBox { padding: 9px; spacing: 6px;
+                            Text { text: "#" + cost.id; width: 38px; color: root.muted; }
+                            Text { text: cost.product; width: 125px; color: root.primary; font-weight: 600; }
+                            Text { text: cost.date-buy; width: 95px; color: root.secondary; }
+                            Text { text: cost.date-sell == "" ? "open" : cost.date-sell; width: 95px; color: root.secondary; }
+                            Text { text: cost.commission-buy; width: 72px; color: root.secondary; }
+                            Text { text: cost.tax-buy; width: 72px; color: root.secondary; }
+                            Text { text: cost.commission-sell; width: 72px; color: root.secondary; }
+                            Text { text: cost.tax-sell; width: 72px; color: root.secondary; }
+                            Text { text: cost.other; width: 72px; color: root.secondary; }
+                            Text { text: cost.total; width: 82px; color: root.accent; }
+                        }
+                    }
+                }
             }
         }
 

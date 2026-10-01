@@ -48,6 +48,34 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    let weak = window.as_weak();
+    let model = journal.clone();
+    window.on_filter_trade_costs(move |from, to| {
+        if let Some(window) = weak.upgrade()
+        {
+            match validate_cost_dates(&from, &to)
+            {
+                Ok(()) =>
+                {
+                    window.set_costs_date_from(from.clone());
+                    window.set_costs_date_to(to.clone());
+                    refresh_trade_costs(&window, &model.borrow(), &from, &to);
+                    window.set_status("Trade costs updated".into());
+                    true
+                },
+                Err(error) =>
+                {
+                    window.set_status(error.into());
+                    false
+                },
+            }
+        }
+        else
+        {
+            false
+        }
+    });
+
     window.on_calculate_risk_input(|pool, percent| {
         let value = pool
             .trim()
@@ -547,6 +575,75 @@ fn refresh(window: &AppWindow, journal: &Journal, product: &str)
         })
         .collect();
     window.set_financing(ModelRc::from(Rc::new(VecModel::from(finance_rows))));
+    refresh_trade_costs(
+        window,
+        journal,
+        &window.get_costs_date_from(),
+        &window.get_costs_date_to(),
+    );
+}
+
+fn validate_cost_dates(from: &str, to: &str) -> Result<(), String>
+{
+    check_date(from, "From date", true)?;
+    check_date(to, "To date", true)?;
+    if !from.is_empty() && !to.is_empty() && from > to
+    {
+        return Err("From date must be on or before to date".into());
+    }
+    Ok(())
+}
+
+fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &str)
+{
+    let selected: Vec<_> = journal
+        .trades
+        .iter()
+        .filter(|trade| {
+            (from.is_empty() || trade.date_buy.as_str() >= from)
+                && (to.is_empty() || trade.date_buy.as_str() <= to)
+        })
+        .collect();
+    let sum = |cost: fn(&Trade) -> f64| -> f64 { selected.iter().map(|trade| cost(trade)).sum() };
+    let commission_buy = sum(|trade| trade.commission_buy);
+    let tax_buy = sum(|trade| trade.tax_buy);
+    let commission_sell = sum(|trade| trade.commission_sell);
+    let tax_sell = sum(|trade| trade.tax_sell);
+    let other = sum(|trade| trade.cost_other);
+    window.set_costs_count(selected.len().to_string().into());
+    window.set_costs_commission_buy(format!("{commission_buy:.2}").into());
+    window.set_costs_tax_buy(format!("{tax_buy:.2}").into());
+    window.set_costs_commission_sell(format!("{commission_sell:.2}").into());
+    window.set_costs_tax_sell(format!("{tax_sell:.2}").into());
+    window.set_costs_other(format!("{other:.2}").into());
+    window.set_costs_total(
+        format!("{:.2}", commission_buy + tax_buy + commission_sell + tax_sell + other).into(),
+    );
+    let rows: Vec<_> = selected
+        .iter()
+        .rev()
+        .map(|trade| TradeCostRow {
+            id: trade.id as i32,
+            product: trade.product.clone().into(),
+            date_buy: trade.date_buy.clone().into(),
+            date_sell: trade.date_sell.clone().into(),
+            commission_buy: format!("{:.2}", trade.commission_buy).into(),
+            tax_buy: format!("{:.2}", trade.tax_buy).into(),
+            commission_sell: format!("{:.2}", trade.commission_sell).into(),
+            tax_sell: format!("{:.2}", trade.tax_sell).into(),
+            other: format!("{:.2}", trade.cost_other).into(),
+            total: format!(
+                "{:.2}",
+                trade.commission_buy
+                    + trade.tax_buy
+                    + trade.commission_sell
+                    + trade.tax_sell
+                    + trade.cost_other
+            )
+            .into(),
+        })
+        .collect();
+    window.set_trade_costs(ModelRc::from(Rc::new(VecModel::from(rows))));
 }
 
 fn format_number(value: f64) -> String
