@@ -160,7 +160,7 @@ export component AppWindow inherits Window
     callback filter-trade-costs(string, string) -> bool;
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     pure callback calculate-risk-input(string, string) -> string;
-    pure callback calculate-stoploss(string, string, string, string, string, string, string, string, string, string, string) -> string;
+    pure callback calculate-stoploss(string, string, string, string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-risk-percent(string, string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
@@ -578,9 +578,9 @@ export component AppWindow inherits Window
                     }
                     Text { text: "Stoploss"; color: root.secondary; }
                     Text { text: risk-mode.current-value == "Stoploss" ? stoploss.text :
-                        root.calculate-stoploss(root.trade-pool, risk.text, price-buy.text, shares-buy.text, shares-sell.text,
-                        exchange-rate-buy.text, commission-buy.text, tax-buy.text, commission-sell.text,
-                        tax-sell.text, trade-side.current-value); color: root.aqua; }
+                        root.calculate-stoploss(root.trade-pool, risk.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
+                        exchange-rate-buy.text, exchange-rate-sell.text, tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text,
+                        trade-side.current-value); color: root.aqua; }
                 }
                 Rectangle { height: 1px; background: root.divider; }
                 HorizontalBox

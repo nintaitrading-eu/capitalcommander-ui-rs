@@ -5,7 +5,7 @@ mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_risk_input, calculate_risk_initial, calculate_percentage_of, convert_from_orig};
+use libcalculatorfinance::{calculate_risk_input, calculate_risk_initial, calculate_stoploss, calculate_percentage_of, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -132,26 +132,32 @@ fn main() -> Result<(), slint::PlatformError>
 
     /* Event: on_calculate_stoploss */
     
-    /*window.on_calculate_stoploss(
+    window.on_calculate_stoploss(
         |pool,
          percent,
-         price,
+         price_buy,
+         price_sell,
          shares_buy,
-         exchange_rate,
+         shares_sell,
+         exchange_rate_buy,
+         exchange_rate_sell,
          commission_buy,
-         tax_buy,
          commission_sell,
+         tax_buy,
          tax_sell,
          side| {
             let inputs: Option<Vec<f64>> = [
                 pool,
                 percent,
-                price,
+                price_buy,
+                price_sell,
                 shares_buy,
-                exchange_rate,
+                shares_sell,
+                exchange_rate_buy,
+                exchange_rate_sell,
                 commission_buy,
-                tax_buy,
                 commission_sell,
+                tax_buy,
                 tax_sell,
             ]
             .iter()
@@ -159,22 +165,21 @@ fn main() -> Result<(), slint::PlatformError>
             .collect();
             inputs
                 .and_then(|values| {
-                    calculate_trade_stoploss(
+                    Some(calculate_stoploss(
+                        if side == "Long" { values[2] } else { values[3] },
+                        if side == "Long" { values[4] as i32 } else { values[5] as i32 },
+                        if side == "Long" { values[6] } else { values[7] },
+                        if side == "Long" { values[8] } else { values[9] },
                         values[1],
                         values[0],
-                        values[2],
-                        values[3],
-                        values[4],
-                        values[5] + values[6] + values[7] + values[8],
-                        side == "Long",
-                    )
-                    .ok()
+                        trade_type(side == "Long"),
+                    ))
                 })
                 .map(|value| format!("{value:.4}"))
                 .unwrap_or_else(|| "—".into())
                 .into()
         },
-    );*/
+    );
 
     /* Event: on_calculate_risk_percent */
 
