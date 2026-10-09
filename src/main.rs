@@ -411,7 +411,7 @@ fn main() -> Result<(), slint::PlatformError>
     let model = journal.clone();
     let database = store.clone();
     window.on_save_financing(
-        move |trade_id, date, quantity, price, rate, exchange_rate, days, value, note| {
+        move |trade_id, date, quantity, price, rate, exchange_rate, days, value, comment| {
             if let Some(window) = weak.upgrade()
             {
                 let result = (|| -> Result<(), String> {
@@ -455,7 +455,7 @@ fn main() -> Result<(), slint::PlatformError>
                         exchange_rate,
                         days,
                         value,
-                        note: note.into(),
+                        comment: comment.into(),
                     })?;
                     *model.borrow_mut() = database.borrow().load()?;
                     Ok(())
@@ -735,7 +735,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
             )
             .into(),
             value: format!("{:.2}", entry.value).into(),
-            note: entry.note.clone().into(),
+            comment: entry.comment.clone().into(),
         })
         .collect();
     window.set_financing(ModelRc::from(Rc::new(VecModel::from(finance_rows))));

@@ -64,7 +64,7 @@ export struct FinancingRow
     date: string,
     terms: string,
     value: string,
-    note: string,
+    comment: string,
 }
 
 export struct TradeCostRow
@@ -677,13 +677,13 @@ export component AppWindow inherits Window
                 VerticalBox { Text { text: "exchange-rate rate"; color: root.secondary; } fin-exchange-rate := LineEdit { text: "1"; } }
                 VerticalBox { Text { text: "Days"; color: root.secondary; } fin-days := LineEdit { text: "1"; } }
                 VerticalBox { Text { text: "Value"; color: root.secondary; } fin-value := LineEdit { placeholder-text: "Auto"; } }
-                VerticalBox { Text { text: "Note"; color: root.secondary; } fin-note := LineEdit { placeholder-text: "Optional"; } }
+                VerticalBox { Text { text: "Comment"; color: root.secondary; } fin-comment := LineEdit { placeholder-text: "Optional"; } }
                 Rectangle { horizontal-stretch: 1; }
                 Button
                 {
                     text: "Log financing"; clicked =>
                     {
-                        root.save-financing(fin-trade.text, fin-date.text, fin-qty.text, fin-price.text, fin-rate.text, fin-exchange-rate.text, fin-days.text, fin-value.text, fin-note.text);
+                        root.save-financing(fin-trade.text, fin-date.text, fin-qty.text, fin-price.text, fin-rate.text, fin-exchange-rate.text, fin-days.text, fin-value.text, fin-comment.text);
                     }
                 }
             }
@@ -706,7 +706,7 @@ export component AppWindow inherits Window
                             Text { text: row.date; width: 115px; color: root.secondary; }
                             Text { text: row.terms; width: 290px; color: root.secondary; }
                             Text { text: row.value; width: 90px; color: root.accent; }
-                            Text { text: row.note; color: root.secondary; }
+                            Text { text: row.comment; color: root.secondary; }
                         }
                     }
                 }

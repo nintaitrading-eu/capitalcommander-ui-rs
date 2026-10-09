@@ -64,7 +64,7 @@ pub struct Financing
     pub rate: f64,
     pub days: i64,
     pub value: f64,
-    pub note: String,
+    pub comment: String,
 }
 
 pub struct NewTrade
@@ -100,7 +100,7 @@ pub struct NewFinancing
     pub exchange_rate: f64,
     pub days: i64,
     pub value: f64,
-    pub note: String,
+    pub comment: String,
 }
 
 pub struct Journal
@@ -263,7 +263,7 @@ impl Store
             .connection
             .prepare(
                 "SELECT f.financing_id, f.trade_id, f.date, f.quantity, f.price,
-                    f.rate, f.days, f.value, f.note
+                    f.rate, f.days, f.value, f.comment
              FROM t_financing f JOIN t_trade t ON t.trade_id = f.trade_id
              WHERE f.is_deleted = 0 AND t.is_deleted = 0 ORDER BY f.financing_id",
             )
@@ -279,7 +279,7 @@ impl Store
                     rate: row.get(5)?,
                     days: row.get(6)?,
                     value: row.get(7)?,
-                    note: row.get(8)?,
+                    comment: row.get(8)?,
                 })
             })
             .map_err(db_error)?;
@@ -602,10 +602,10 @@ impl Store
             .ok_or_else(|| format!("Trade #{} does not exist", entry.trade_id))?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction.execute(
-            "INSERT INTO t_financing(trade_id, date, quantity, price, rate, exchange_rate, days, value, note)
+            "INSERT INTO t_financing(trade_id, date, quantity, price, rate, exchange_rate, days, value, comment)
                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![entry.trade_id, entry.date, entry.quantity, entry.price, entry.rate,
-                    entry.exchange_rate, entry.days, entry.value, entry.note]
+                    entry.exchange_rate, entry.days, entry.value, entry.comment]
         ).map_err(db_error)?;
         let financing_total: f64 = transaction.query_row(
             "SELECT COALESCE(SUM(value), 0)
