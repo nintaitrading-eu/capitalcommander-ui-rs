@@ -55,6 +55,7 @@ CREATE TABLE t_trade_cost (
 CREATE TABLE t_pool(
     pool_id INTEGER PRIMARY KEY,
     pool_value REAL NOT NULL DEFAULT 0 CHECK (pool_value >= 0),
+    pool_value_converted REAL NOT NULL DEFAULT 0 CHECK (pool_value_converted >= 0),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -62,11 +63,15 @@ CREATE TABLE t_pool(
 CREATE TABLE t_trade_calculated (
     trade_calculated_id INTEGER PRIMARY KEY,
     risk_initial REAL NOT NULL DEFAULT 0 CHECK (risk_initial >= 0),
+    risk_initial_converted REAL NOT NULL DEFAULT 0 CHECK (risk_initial_converted >= 0),
     risk_actual REAL CHECK (risk_actual >= 0),
+    risk_actual_converted REAL CHECK (risk_actual_converted >= 0),
     risk_percent REAL CHECK (risk_percent >= 0),
     stoploss REAL CHECK (stoploss >= 0),
     profit_loss REAL,
+    profit_loss_converted REAL,
     profit_loss_total REAL,
+    profit_loss_total_converted REAL,
     r_multiple REAL,
     is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -99,13 +104,13 @@ CREATE TABLE t_financing (
     financing_id INTEGER PRIMARY KEY,
     trade_id INTEGER NOT NULL REFERENCES t_trade(trade_id),
     date TEXT NOT NULL,
-    quantity REAL NOT NULL CHECK (quantity > 0),
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
     price REAL NOT NULL CHECK (price >= 0),
     rate REAL NOT NULL CHECK (rate >= 0),
     exchange_rate REAL NOT NULL CHECK (exchange_rate > 0),
     days INTEGER NOT NULL CHECK (days > 0),
     value REAL NOT NULL CHECK (value >= 0),
-    note TEXT NOT NULL DEFAULT '',
+    comment TEXT NOT NULL DEFAULT '',
     is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))

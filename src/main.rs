@@ -1,7 +1,12 @@
 mod data;
+mod util;
+#[path = "calculatorfinance-lib.rs"]
+mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
-use libcalculatorfinance::{calculate_risk_input, convert_from_orig};
+use calculatorfinance_lib::{trade_type};
+use libcalculatorfinance::{calculate_risk_initial, calculate_percentage_of, convert_from_orig};
+use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -10,6 +15,8 @@ slint::include_modules!();
 
 fn main() -> Result<(), slint::PlatformError>
 {
+    /* Setup */
+
     let database_path = data::database_path();
     let store = match Store::open(&database_path)
     {
@@ -26,10 +33,13 @@ fn main() -> Result<(), slint::PlatformError>
     let store = Rc::new(RefCell::new(store));
     let journal = Rc::new(RefCell::new(journal));
     let window = AppWindow::new()?;
+    
     window.set_source_label(database_path.display().to_string().into());
     set_products(&window, &journal.borrow());
     set_markets(&window, &journal.borrow());
+
     refresh(&window, &journal.borrow());
+
     window.set_status(
         format!(
             "Loaded {} trades and {} financing entries",
@@ -39,9 +49,12 @@ fn main() -> Result<(), slint::PlatformError>
         .into(),
     );
 
+    /* Event: Filter journal */
+
     let weak = window.as_weak();
     let model = journal.clone();
-    window.on_filter_journal(move |from, to| {
+    window.on_filter_journal(move |from, to|
+    {
         if let Some(window) = weak.upgrade()
         {
             match validate_date_range(&from, &to)
@@ -53,12 +66,12 @@ fn main() -> Result<(), slint::PlatformError>
                     refresh(&window, &model.borrow());
                     window.set_status("Trade journal updated".into());
                     true
-                },
+                }
                 Err(error) =>
                 {
                     window.set_status(error.into());
                     false
-                },
+                }
             }
         }
         else
@@ -67,9 +80,12 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    /* Event: Filter trade costs */
+
     let weak = window.as_weak();
     let model = journal.clone();
-    window.on_filter_trade_costs(move |from, to| {
+    window.on_filter_trade_costs(move |from, to|
+    {
         if let Some(window) = weak.upgrade()
         {
             match validate_date_range(&from, &to)
@@ -81,12 +97,12 @@ fn main() -> Result<(), slint::PlatformError>
                     refresh_trade_costs(&window, &model.borrow(), &from, &to);
                     window.set_status("Trade costs updated".into());
                     true
-                },
+                }
                 Err(error) =>
                 {
                     window.set_status(error.into());
                     false
-                },
+                }
             }
         }
         else
@@ -95,7 +111,9 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
-    window.on_calculate_risk_input(|pool, percent| {
+    /* Event: on_calculate_risk_input */
+
+    /*window.on_calculate_risk_input(|pool, percent| {
         let value = pool
             .trim()
             .parse::<f64>()
@@ -110,19 +128,101 @@ fn main() -> Result<(), slint::PlatformError>
             .map(|value| format!("{value:.2}"))
             .unwrap_or_else(|| "—".into())
             .into()
-    });
-    window.on_calculate_stoploss(|pool, percent, price, quantity, exchange_rate, commission_buy,
-                                  tax_buy, commission_sell, tax_sell, side| {
-        let inputs: Option<Vec<f64>> = [pool, percent, price, quantity, exchange_rate,
-                                        commission_buy, tax_buy, commission_sell, tax_sell]
-            .iter().map(|value| value.trim().parse::<f64>().ok()).collect();
-        inputs.and_then(|values| data::calculate_trade_stoploss(
-            values[1], values[0], values[2], values[3], values[4],
-            values[5] + values[6] + values[7] + values[8], side == "Long",
-        ).ok())
-        .map(|value| format!("{value:.4}"))
-        .unwrap_or_else(|| "—".into()).into()
-    });
+    });*/
+
+    /* Event: on_calculate_stoploss */
+    
+    /*window.on_calculate_stoploss(
+        |pool,
+         percent,
+         price,
+         shares_buy,
+         exchange_rate,
+         commission_buy,
+         tax_buy,
+         commission_sell,
+         tax_sell,
+         side| {
+            let inputs: Option<Vec<f64>> = [
+                pool,
+                percent,
+                price,
+                shares_buy,
+                exchange_rate,
+                commission_buy,
+                tax_buy,
+                commission_sell,
+                tax_sell,
+            ]
+            .iter()
+            .map(|value| value.trim().parse::<f64>().ok())
+            .collect();
+            inputs
+                .and_then(|values| {
+                    calculate_trade_stoploss(
+                        values[1],
+                        values[0],
+                        values[2],
+                        values[3],
+                        values[4],
+                        values[5] + values[6] + values[7] + values[8],
+                        side == "Long",
+                    )
+                    .ok()
+                })
+                .map(|value| format!("{value:.4}"))
+                .unwrap_or_else(|| "—".into())
+                .into()
+        },
+    );*/
+
+    /* Event: on_calculate_risk_percent */
+
+    /*window.on_calculate_risk_percent(
+        |pool,
+         stoploss,
+         price,
+         quantity,
+         exchange_rate,
+         commission_buy,
+         tax_buy,
+         commission_sell,
+         tax_sell,
+         side| {
+            let inputs: Option<Vec<f64>> = [
+                pool,
+                stoploss,
+                price,
+                quantity,
+                exchange_rate,
+                commission_buy,
+                tax_buy,
+                commission_sell,
+                tax_sell,
+            ]
+            .iter()
+            .map(|value| value.trim().parse::<f64>().ok())
+            .collect();
+            inputs
+                .and_then(|values| {
+                    calculate_trade_risk_percent(
+                        values[1],
+                        values[0],
+                        values[2],
+                        values[3],
+                        values[4],
+                        values[5] + values[6] + values[7] + values[8],
+                        trade_type(side == "Long"),
+                    )
+                    .ok()
+                })
+                .map(|value| format!("{value:.4}"))
+                .unwrap_or_else(|| "—".into())
+                .into()
+        },
+    );*/
+
+    /* Event: on_save_trade */
 
     let weak = window.as_weak();
     let model = journal.clone();
@@ -133,7 +233,8 @@ fn main() -> Result<(), slint::PlatformError>
               side,
               date_buy,
               date_sell,
-              quantity,
+              shares_buy,
+              shares_sell,
               price_buy,
               price_sell,
               exchange_rate_buy,
@@ -144,6 +245,7 @@ fn main() -> Result<(), slint::PlatformError>
               tax_sell,
               cost_other,
               risk,
+              stoploss,
               trade_pool| {
             if let Some(window) = weak.upgrade()
             {
@@ -163,39 +265,52 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         return Err("Sell date must be on or after buy date".into());
                     }
-                    let quantity = positive(&quantity, "Quantity")?;
-                    let price_buy = nonnegative(&price_buy, "Buy price")?;
-                    let price_sell = nonnegative(&price_sell, "Sell price")?;
-                    let exchange_rate_buy = positive(&exchange_rate_buy, "Buy exchange rate")?;
-                    let exchange_rate_sell = positive(&exchange_rate_sell, "Sell exchange rate")?;
-                    let commission_buy = nonnegative(&commission_buy, "Commission buy")?;
-                    let tax_buy = nonnegative(&tax_buy, "Tax buy")?;
-                    let commission_sell = nonnegative(&commission_sell, "Commission sell")?;
-                    let tax_sell = nonnegative(&tax_sell, "Tax sell")?;
-                    let cost_other = nonnegative(&cost_other, "Other costs")?;
-                    let risk_percent = if risk.trim().is_empty()
+                    let shares_buy = validated_as_positive(&shares_buy, "Shares (B)")? as i32;
+                    let shares_sell = validated_as_positive(&shares_sell, "Shares (S)")? as i32;
+                    let price_buy = validated_as_positive(&price_buy, "Buy price")?;
+                    let price_sell = validated_as_positive(&price_sell, "Sell price")?;
+                    let exchange_rate_buy = validated_as_positive(&exchange_rate_buy, "Buy exchange rate")?;
+                    let exchange_rate_sell = validated_as_positive(&exchange_rate_sell, "Sell exchange rate")?;
+                    let commission_buy = validated_as_positive(&commission_buy, "Commission buy")?;
+                    let tax_buy = validated_as_positive(&tax_buy, "Tax buy")?;
+                    let commission_sell = validated_as_positive(&commission_sell, "Commission sell")?;
+                    let tax_sell = validated_as_positive(&tax_sell, "Tax sell")?;
+                    let cost_other = validated_as_positive(&cost_other, "Other costs")?;
+                    let entered_stoploss = if stoploss.trim().is_empty()
                     {
                         None
                     }
                     else
                     {
-                        Some(nonnegative(&risk, "Risk %")?)
+                        Some(validated_as_positive(&stoploss, "Stoploss")?)
                     };
-                    let trade_pool = if risk_percent.is_none() || trade_pool.trim().is_empty()
+                    if !risk.trim().is_empty() && entered_stoploss.is_some()
+                    {
+                        return Err("Enter either risk % or stoploss".into());
+                    }
+                    let trade_pool = validated_as_positive(&trade_pool, "Risk pool")?;
+                    let risk_percent = if let Some(stoploss) = entered_stoploss
+                    {
+                        Some(calculate_percentage_of(calculate_risk_initial(
+                            price_buy,
+                            shares_buy,
+                            tax_buy,
+                            commission_buy,
+                            entered_stoploss.unwrap(),
+                            trade_type(side == "Long"),
+                        ), trade_pool))
+                    }
+                    else if risk.trim().is_empty()
                     {
                         None
                     }
                     else
                     {
-                        Some(nonnegative(&trade_pool, "Risk pool")?)
+                        Some(validated_as_positive(&risk, "Risk %")?)
                     };
-                    if trade_id == 0 && (risk_percent.is_none() || trade_pool.is_none())
+                    if trade_id == 0 && risk_percent.is_none()
                     {
-                        return Err("Enter risk % and a pool value".into());
-                    }
-                    if risk_percent.is_some() != trade_pool.is_some()
-                    {
-                        return Err("Risk % requires a pool value".into());
+                        return Err("Enter risk % or stoploss and a pool value".into());
                     }
                     let risk_initial = if trade_id == 0
                     {
@@ -224,11 +339,12 @@ fn main() -> Result<(), slint::PlatformError>
                             Some(date_sell.into())
                         },
                         is_long,
+                        shares_buy,
+                        shares_sell,
                         price_buy,
                         price_sell,
                         exchange_rate_buy,
                         exchange_rate_sell,
-                        quantity,
                         commission_buy,
                         tax_buy,
                         commission_sell,
@@ -236,7 +352,15 @@ fn main() -> Result<(), slint::PlatformError>
                         cost_other,
                         risk_initial,
                         risk_percent,
-                        trade_pool: if trade_id == 0 { None } else { trade_pool },
+                        trade_pool: if trade_id == 0
+                        {
+                            None
+                        }
+                        else
+                        {
+                            Some(trade_pool)
+                        },
+                        stoploss: entered_stoploss,
                     };
                     if trade_id == 0
                     {
@@ -281,6 +405,8 @@ fn main() -> Result<(), slint::PlatformError>
         },
     );
 
+    /* Event: on_save_financing */
+
     let weak = window.as_weak();
     let model = journal.clone();
     let database = store.clone();
@@ -294,10 +420,10 @@ fn main() -> Result<(), slint::PlatformError>
                         .parse()
                         .map_err(|_| "Trade ID must be a positive integer")?;
                     check_date(&date, "Date", false)?;
-                    let quantity = positive(&quantity, "Quantity")?;
-                    let price = nonnegative(&price, "Price")?;
-                    let rate = nonnegative(&rate, "Rate")?;
-                    let exchange_rate = positive(&exchange_rate, "Exchange rate")?;
+                    let quantity = validated_as_positive(&quantity, "Quantity")? as i32;
+                    let price = validated_as_positive(&price, "Price")?;
+                    let rate = validated_as_positive(&rate, "Rate")?;
+                    let exchange_rate = validated_as_positive(&exchange_rate, "Exchange rate")?;
                     let days: i64 = days
                         .trim()
                         .parse()
@@ -307,14 +433,14 @@ fn main() -> Result<(), slint::PlatformError>
                         return Err("Days must be greater than zero".into());
                     }
                     let price_eur = convert_from_orig(price, exchange_rate);
-                    let calculated = quantity * price_eur * rate / 100.0 * days as f64 / 360.0;
+                    let calculated = quantity as f64 * price_eur * rate / 100.0 * days as f64 / 360.0;
                     let value = if value.trim().is_empty()
                     {
                         calculated
                     }
                     else
                     {
-                        nonnegative(&value, "Value")?
+                        validated_as_positive(&value, "Value")?
                     };
                     if !value.is_finite()
                     {
@@ -373,6 +499,8 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    /* Event: on_save_market */
+
     let weak = window.as_weak();
     let model = journal.clone();
     let database = store.clone();
@@ -396,9 +524,14 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    /* Event: on_quit */
+
     window.on_quit(|| {
         let _ = slint::quit_event_loop();
     });
+
+    /* UI startup */
+
     window.window().set_maximized(true);
     window.run()
 }
@@ -423,7 +556,11 @@ fn set_products(window: &AppWindow, journal: &Journal)
 fn set_markets(window: &AppWindow, journal: &Journal)
 {
     window.set_market_codes(strings(
-        journal.markets.iter().map(|market| market.code.clone()).collect(),
+        journal
+            .markets
+            .iter()
+            .map(|market| market.code.clone())
+            .collect(),
     ));
     let details: Vec<_> = journal
         .markets
@@ -446,18 +583,27 @@ fn strings(values: Vec<String>) -> ModelRc<SharedString>
 
 fn refresh(window: &AppWindow, journal: &Journal)
 {
+    window.set_current_pool_exact(
+        journal
+            .pool_value_converted
+            .map(|value| value.to_string())
+            .unwrap_or_default()
+            .into(),
+    );
     window.set_current_pool(
         journal
-            .pool_value
+            .pool_value_converted
             .map(|value| format!("{value:.2}"))
             .unwrap_or_default()
             .into(),
     );
     let from = window.get_journal_date_from();
     let to = window.get_journal_date_to();
-    let selected: Vec<_> = journal.trades.iter().filter(|trade| {
-        date_in_range(&trade.date_buy, &from, &to)
-    }).collect();
+    let selected: Vec<_> = journal
+        .trades
+        .iter()
+        .filter(|trade| date_in_range(&trade.date_buy, &from, &to))
+        .collect();
     let is_closed: Vec<_> = selected
         .iter()
         .filter(|trade| trade.profit_loss.is_some())
@@ -470,7 +616,10 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .iter()
         .filter_map(|trade| trade.r_multiple())
         .collect();
-    let total_pl: f64 = is_closed.iter().filter_map(|trade| trade.profit_loss_total).sum();
+    let total_pl: f64 = is_closed
+        .iter()
+        .filter_map(|trade| trade.profit_loss_total)
+        .sum();
     window.set_trade_count(is_closed.len().to_string().into());
     window.set_win_rate(
         if is_closed.is_empty()
@@ -520,8 +669,10 @@ fn refresh(window: &AppWindow, journal: &Journal)
             .into(),
             date_buy: trade.date_buy.clone().into(),
             date_sell: trade.date_sell.clone().into(),
-            quantity: format_number(trade.quantity).into(),
-            edit_quantity: trade.quantity.to_string().into(),
+            shares_buy: format_number(trade.shares_buy.into()).into(),
+            shares_sell: format_number(trade.shares_sell.into()).into(),
+            edit_shares_buy: trade.shares_buy.to_string().into(),
+            edit_shares_sell: trade.shares_sell.to_string().into(),
             price_buy: trade.price_buy.to_string().into(),
             price_sell: trade.price_sell.to_string().into(),
             exchange_rate_buy: trade.exchange_rate_buy.to_string().into(),
@@ -536,6 +687,11 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
+            stoploss: trade
+                .stoploss
+                .map(|value| value.to_string())
+                .unwrap_or_default()
+                .into(),
             trade_pool: trade
                 .trade_pool
                 .map(|value| value.to_string())
@@ -543,7 +699,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .into(),
             risk_initial: format!("{:.2}", trade.risk_initial).into(),
             risk_actual: trade
-                .displayed_risk_actual()
+                .risk_actual
                 .map(|value| format!("{value:.2}"))
                 .unwrap_or_else(|| "—".into())
                 .into(),
@@ -572,7 +728,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
             date: entry.date.clone().into(),
             terms: format!(
                 "{} × {:.2} · {:.4}% · {} d",
-                format_number(entry.quantity),
+                format_number(entry.quantity.into()),
                 entry.price,
                 entry.rate,
                 entry.days
@@ -602,11 +758,6 @@ fn validate_date_range(from: &str, to: &str) -> Result<(), String>
     Ok(())
 }
 
-fn date_in_range(date: &str, from: &str, to: &str) -> bool
-{
-    (from.is_empty() || date >= from) && (to.is_empty() || date <= to)
-}
-
 fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &str)
 {
     let selected: Vec<_> = journal
@@ -627,7 +778,11 @@ fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &s
     window.set_costs_tax_sell(format!("{tax_sell:.2}").into());
     window.set_costs_other(format!("{other:.2}").into());
     window.set_costs_total(
-        format!("{:.2}", commission_buy + tax_buy + commission_sell + tax_sell + other).into(),
+        format!(
+            "{:.2}",
+            commission_buy + tax_buy + commission_sell + tax_sell + other
+        )
+        .into(),
     );
     let rows: Vec<_> = selected
         .iter()
@@ -654,77 +809,6 @@ fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &s
         })
         .collect();
     window.set_trade_costs(ModelRc::from(Rc::new(VecModel::from(rows))));
-}
-
-fn format_number(value: f64) -> String
-{
-    if value.fract() == 0.0
-    {
-        format!("{value:.0}")
-    }
-    else
-    {
-        format!("{value:.2}")
-    }
-}
-
-fn nonnegative(input: &str, label: &str) -> Result<f64, String>
-{
-    let value: f64 = input
-        .trim()
-        .parse()
-        .map_err(|_| format!("{label} must be a number"))?;
-    if !value.is_finite() || value < 0.0
-    {
-        return Err(format!("{label} must be a nonnegative finite number"));
-    }
-    Ok(value)
-}
-
-fn positive(input: &str, label: &str) -> Result<f64, String>
-{
-    let value = nonnegative(input, label)?;
-    if value == 0.0
-    {
-        return Err(format!("{label} must be greater than zero"));
-    }
-    Ok(value)
-}
-
-fn check_date(input: &str, label: &str, optional: bool) -> Result<(), String>
-{
-    if optional && input.is_empty()
-    {
-        return Ok(());
-    }
-    let bytes = input.as_bytes();
-    if bytes.len() != 10
-        || bytes[4] != b'-'
-        || bytes[7] != b'-'
-        || !bytes
-            .iter()
-            .enumerate()
-            .all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit())
-    {
-        return Err(format!("{label} must use YYYY-MM-DD"));
-    }
-    let year: u16 = input[0..4].parse().unwrap_or(0);
-    let month: u8 = input[5..7].parse().unwrap_or(0);
-    let day: u8 = input[8..10].parse().unwrap_or(0);
-    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let max_day = match month
-    {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if leap => 29,
-        2 => 28,
-        _ => 0,
-    };
-    if year == 0 || day == 0 || day > max_day
-    {
-        return Err(format!("{label} is not a valid date"));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

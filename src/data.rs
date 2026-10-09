@@ -1,8 +1,5 @@
-use libcalculatorfinance::{
-    calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple,
-    calculate_risk_actual, calculate_risk_initial, calculate_risk_input, calculate_stoploss,
-    convert_from_orig, TradeType,
-};
+use crate::calculatorfinance_lib::{trade_calculations, trade_type};
+use libcalculatorfinance::{convert_to_orig, convert_from_orig, calculate_profit_loss};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 
@@ -31,7 +28,8 @@ pub struct Trade
     pub date_buy: String,
     pub date_sell: String,
     pub is_long: bool,
-    pub quantity: f64,
+    pub shares_buy: i32,
+    pub shares_sell: i32,
     pub price_buy: f64,
     pub price_sell: f64,
     pub exchange_rate_buy: f64,
@@ -42,42 +40,17 @@ pub struct Trade
     pub tax_sell: f64,
     pub cost_other: f64,
     pub risk_initial: f64,
+    pub risk_initial_converted: f64,
     pub risk_actual: Option<f64>,
+    pub risk_actual_converted: Option<f64>,
     pub risk_percent: Option<f64>,
     pub trade_pool: Option<f64>,
+    pub trade_pool_converted: Option<f64>,
+    pub stoploss: Option<f64>,
     pub profit_loss: Option<f64>,
+    pub profit_loss_converted: Option<f64>,
     pub profit_loss_total: Option<f64>,
-}
-
-impl Trade
-{
-    pub fn displayed_risk_actual(&self) -> Option<f64>
-    {
-        self.risk_actual.or_else(|| {
-            self.profit_loss.map(|profit_loss| {
-                calculate_risk_actual(
-                    convert_from_orig(self.price_buy, self.exchange_rate_buy) * self.quantity,
-                    1,
-                    0.0,
-                    self.commission_buy + self.tax_buy,
-                    convert_from_orig(self.price_sell, self.exchange_rate_sell) * self.quantity,
-                    1,
-                    0.0,
-                    self.commission_sell + self.tax_sell,
-                    self.risk_initial,
-                    profit_loss,
-                    trade_type(self.is_long),
-                )
-            })
-        })
-    }
-
-    pub fn r_multiple(&self) -> Option<f64>
-    {
-        self.profit_loss
-            .filter(|_| self.risk_initial > 0.0)
-            .map(|pl| calculate_r_multiple(pl, self.risk_initial))
-    }
+    pub profit_loss_total_converted: Option<f64>,
 }
 
 #[derive(Clone, Debug)]
@@ -86,7 +59,7 @@ pub struct Financing
     pub id: i64,
     pub trade_id: i64,
     pub date: String,
-    pub quantity: f64,
+    pub quantity: i32,
     pub price: f64,
     pub rate: f64,
     pub days: i64,
@@ -100,7 +73,8 @@ pub struct NewTrade
     pub date_buy: String,
     pub date_sell: Option<String>,
     pub is_long: bool,
-    pub quantity: f64,
+    pub shares_buy: i32,
+    pub shares_sell: i32,
     pub price_buy: f64,
     pub price_sell: f64,
     pub exchange_rate_buy: f64,
@@ -113,13 +87,14 @@ pub struct NewTrade
     pub risk_initial: f64,
     pub risk_percent: Option<f64>,
     pub trade_pool: Option<f64>,
+    pub stoploss: Option<f64>,
 }
 
 pub struct NewFinancing
 {
     pub trade_id: i64,
     pub date: String,
-    pub quantity: f64,
+    pub quantity: i32,
     pub price: f64,
     pub rate: f64,
     pub exchange_rate: f64,
@@ -134,7 +109,7 @@ pub struct Journal
     pub markets: Vec<Market>,
     pub trades: Vec<Trade>,
     pub financing: Vec<Financing>,
-    pub pool_value: Option<f64>,
+    pub pool_value_converted: Option<f64>,
 }
 
 pub struct Store
@@ -174,10 +149,10 @@ impl Store
 
     pub fn load(&self) -> Result<Journal, String>
     {
-        let pool_value = self
+        let pool_value_converted = self
             .connection
             .query_row(
-                "SELECT pool_value FROM t_pool ORDER BY pool_id DESC LIMIT 1",
+                "SELECT pool_value_converted FROM t_pool ORDER BY pool_id DESC LIMIT 1",
                 [],
                 |row| row.get(0),
             )
@@ -231,11 +206,12 @@ impl Store
             .connection
             .prepare(
                 "SELECT t.trade_id, p.name, t.date_buy, COALESCE(t.date_sell, ''),
-                    t.is_long, t.shares_buy, t.price_buy, t.price_sell,
+                    t.is_long, t.shares_buy, t.shares_sell, t.price_buy, t.price_sell,
                     cost.commission_buy, cost.tax_buy, cost.commission_sell,
-                    cost.tax_sell, cost.other, calc.risk_initial, calc.profit_loss, calc.profit_loss_total,
-                    t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual,
-                    calc.risk_percent, pool.pool_value
+                    cost.tax_sell, cost.other, calc.risk_initial, calc.risk_initial_converted, calc.profit_loss, calc.profit_loss_converted,
+                    calc.profit_loss_total, calc.profit_loss_total_converted,
+                    t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual, calc.risk_actual_converted,
+                    calc.risk_percent, pool.pool_value, pool.pool_value_converted, calc.stoploss
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
              JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
              JOIN t_trade_calculated calc ON calc.trade_calculated_id = t.trade_calculated_id
@@ -251,22 +227,29 @@ impl Store
                     date_buy: row.get(2)?,
                     date_sell: row.get(3)?,
                     is_long: row.get(4)?,
-                    quantity: row.get(5)?,
-                    price_buy: row.get(6)?,
-                    price_sell: row.get(7)?,
-                    commission_buy: row.get(8)?,
-                    tax_buy: row.get(9)?,
-                    commission_sell: row.get(10)?,
-                    tax_sell: row.get(11)?,
-                    cost_other: row.get(12)?,
-                    risk_initial: row.get(13)?,
-                    profit_loss: row.get(14)?,
-                    profit_loss_total: row.get(15)?,
-                    exchange_rate_buy: row.get(16)?,
-                    exchange_rate_sell: row.get(17)?,
-                    risk_actual: row.get(18)?,
-                    risk_percent: row.get(19)?,
-                    trade_pool: row.get(20)?,
+                    shares_buy: row.get(5)?,
+                    shares_sell: row.get(6)?,
+                    price_buy: row.get(7)?,
+                    price_sell: row.get(8)?,
+                    commission_buy: row.get(9)?,
+                    tax_buy: row.get(10)?,
+                    commission_sell: row.get(11)?,
+                    tax_sell: row.get(12)?,
+                    cost_other: row.get(13)?,
+                    risk_initial: row.get(14)?,
+                    risk_initial_converted: row.get(15)?,
+                    profit_loss: row.get(16)?,
+                    profit_loss_converted: row.get(17)?,
+                    profit_loss_total: row.get(18)?,
+                    profit_loss_total_converted: row.get(19)?,
+                    exchange_rate_buy: row.get(20)?,
+                    exchange_rate_sell: row.get(21)?,
+                    risk_actual: row.get(22)?,
+                    risk_actual_converted: row.get(23)?,
+                    risk_percent: row.get(24)?,
+                    trade_pool: row.get(25)?,
+                    trade_pool_converted: row.get(26)?,
+                    stoploss: row.get(27)?,
                 })
             })
             .map_err(db_error)?;
@@ -309,7 +292,7 @@ impl Store
             markets,
             trades,
             financing,
-            pool_value,
+            pool_value_converted,
         })
     }
 
@@ -393,44 +376,64 @@ impl Store
         let pool_value = match trade.trade_pool
         {
             Some(value) => value,
-            None => transaction.query_row(
-                "SELECT pool_value FROM t_pool ORDER BY pool_id DESC LIMIT 1", [], |row| row.get(0)
-            ).optional().map_err(db_error)?.ok_or("No pool balance exists")?,
+            None => transaction
+                .query_row(
+                    "SELECT pool_value FROM t_pool ORDER BY pool_id DESC LIMIT 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(db_error)?
+                .ok_or("No pool balance exists")?,
         };
         if !pool_value.is_finite() || pool_value < 0.0
         {
             return Err("Pool balance must be finite and nonnegative".into());
         }
-        let (stoploss, risk_initial, risk_actual, profit_loss, profit_loss_total, r_multiple) =
-            trade_calculations(&trade, pool_value, 0.0)?;
-        transaction.execute("INSERT INTO t_pool(pool_value) VALUES (?1)", [pool_value]).map_err(db_error)?;
+        transaction
+            .execute("INSERT INTO t_pool(pool_value, pool_value_converted) VALUES (?1)", [pool_value, convert_to_orig(pool_value, trade.exchange_rate_buy)])
+            .map_err(db_error)?;
         let pool_id = transaction.last_insert_rowid();
         transaction
             .execute(
-                "INSERT INTO t_trade_cost(commission_buy, tax_buy, commission_sell, tax_sell, other) VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO t_trade_cost(commission_buy, tax_buy, commission_sell, tax_sell, other)
+                      VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![trade.commission_buy, trade.tax_buy, trade.commission_sell, trade.tax_sell, trade.cost_other],
             )
             .map_err(db_error)?;
         let cost_id = transaction.last_insert_rowid();
-        transaction.execute(
-            "INSERT INTO t_trade_calculated(risk_initial, risk_actual, risk_percent, stoploss,
-                                              profit_loss, profit_loss_total, r_multiple)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![risk_initial, risk_actual, trade.risk_percent, stoploss,
-                    profit_loss, profit_loss_total, r_multiple]
-        ).map_err(db_error)?;
+        let (stoploss, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, 0.0)?;
+        transaction
+            .execute(
+                "INSERT INTO t_trade_calculated(risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, risk_percent, stoploss, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple)
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![
+                    risk_initial,
+                    risk_initial_converted,
+                    risk_actual,
+                    risk_actual_converted,
+                    trade.risk_percent,
+                    stoploss,
+                    profit_loss,
+                    profit_loss_converted,
+                    profit_loss_total,
+                    profit_loss_total_converted,
+                    r_multiple
+                ],
+            )
+            .map_err(db_error)?;
         let calculated_id = transaction.last_insert_rowid();
         transaction.execute(
             "INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, pool_id, date_buy, date_sell,
                                  is_long, shares_buy, shares_sell, price_buy, price_sell, exchange_rate_buy, exchange_rate_sell)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![calculated_id, product_id, cost_id, pool_id, trade.date_buy, trade.date_sell,
-                    trade.is_long, trade.quantity, if profit_loss.is_some() { trade.quantity } else { 0.0 },
+                    trade.is_long, trade.shares_buy, if profit_loss.is_some() { trade.shares_sell } else { 0 },
                     trade.price_buy, trade.price_sell, trade.exchange_rate_buy, trade.exchange_rate_sell]
         ).map_err(db_error)?;
-        if let Some(profit_loss_total) = profit_loss_total
+        if let Some(profit_loss_total_converted) = profit_loss_total_converted
         {
-            record_pool_profit_loss(&transaction, profit_loss_total)?;
+            record_pool_profit_loss_total(&transaction, profit_loss_total_converted)?;
         }
         transaction.commit().map_err(db_error)?;
         Ok(())
@@ -465,8 +468,6 @@ impl Store
             .optional()
             .map_err(db_error)?
             .ok_or_else(|| format!("Trade #{id} does not exist or is already closed"))?;
-        let (stoploss, risk_initial, risk_actual, profit_loss, profit_loss_total, r_multiple) =
-            trade_calculations(&trade, pool_value, financing_total)?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
@@ -483,6 +484,7 @@ impl Store
                 ],
             )
             .map_err(db_error)?;
+        let (stoploss, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, financing_total)?;
         transaction
             .execute(
                 "UPDATE t_trade SET product_id = ?1, date_buy = ?2, date_sell = ?3, is_long = ?4,
@@ -494,15 +496,8 @@ impl Store
                     trade.date_buy,
                     trade.date_sell,
                     trade.is_long,
-                    trade.quantity,
-                    if profit_loss.is_some()
-                    {
-                        trade.quantity
-                    }
-                    else
-                    {
-                        0.0
-                    },
+                    trade.shares_buy,
+                    trade.shares_sell,
                     trade.price_buy,
                     trade.price_sell,
                     trade.exchange_rate_buy,
@@ -513,18 +508,31 @@ impl Store
             .map_err(db_error)?;
         transaction
             .execute(
-                "UPDATE t_trade_calculated SET risk_initial = ?1, risk_actual = ?2,
-             risk_percent = ?3, stoploss = ?4, profit_loss = ?5,
-             profit_loss_total = ?6, r_multiple = ?7,
+                "UPDATE t_trade_calculated
+                    SET risk_initial = ?1,
+                        risk_initial_converted = ?2,
+                        risk_actual = ?3,
+                        risk_actual_converted = ?4,
+                        risk_percent = ?5,
+                        stoploss = ?6,
+                        profit_loss = ?7,
+                        profit_loss_converted = ?8,
+                        profit_loss_total = ?9,
+                        profit_loss_total_converted = ?10,
+                        r_multiple = ?11,
              date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE trade_calculated_id = ?8",
+             WHERE trade_calculated_id = ?12",
                 params![
                     risk_initial,
+                    risk_initial_converted,
                     risk_actual,
+                    risk_actual_converted,
                     trade.risk_percent,
                     stoploss,
                     profit_loss,
+                    profit_loss_converted,
                     profit_loss_total,
+                    profit_loss_total_converted,
                     r_multiple,
                     calculated_id
                 ],
@@ -532,7 +540,11 @@ impl Store
             .map_err(db_error)?;
         if let Some(profit_loss_total) = profit_loss_total
         {
-            record_pool_profit_loss(&transaction, profit_loss_total)?;
+            record_pool_profit_loss_total(&transaction, profit_loss_total)?;
+        }
+        if let Some(profit_loss_total_converted) = profit_loss_total_converted
+        {
+            record_pool_profit_loss_total_converted(&transaction, profit_loss_total_converted)?;
         }
         transaction.commit().map_err(db_error)?;
         Ok(())
@@ -543,7 +555,8 @@ impl Store
         let (
             calculated_id,
             is_long,
-            quantity,
+            shares_buy,
+            shares_sell,
             price_buy,
             price_sell,
             exchange_rate_buy,
@@ -554,14 +567,16 @@ impl Store
             tax_sell,
             cost_other,
             is_closed,
-        ): (i64, bool, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64, bool) = self
+        ): (i64, bool, i32, i32, f64, f64, f64, f64, f64, f64, f64, f64, f64, bool) = self
             .connection
             .query_row(
-                "SELECT t.trade_calculated_id, t.is_long, t.shares_buy, t.price_buy, t.price_sell,
+                "SELECT t.trade_calculated_id, t.is_long, t.shares_buy, t.shares_sell, t.price_buy, t.price_sell,
                         t.exchange_rate_buy, t.exchange_rate_sell, cost.commission_buy, cost.tax_buy,
                         cost.commission_sell, cost.tax_sell, cost.other, t.date_sell IS NOT NULL
-                 FROM t_trade t JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
-                 WHERE t.trade_id = ?1 AND t.is_deleted = 0",
+                   FROM t_trade t
+                   JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
+                  WHERE t.trade_id = ?1
+                    AND t.is_deleted = 0",
                 [entry.trade_id],
                 |row| {
                     Ok((
@@ -578,6 +593,7 @@ impl Store
                         row.get(10)?,
                         row.get(11)?,
                         row.get(12)?,
+                        row.get(13)?,
                     ))
                 },
             )
@@ -587,31 +603,35 @@ impl Store
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction.execute(
             "INSERT INTO t_financing(trade_id, date, quantity, price, rate, exchange_rate, days, value, note)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![entry.trade_id, entry.date, entry.quantity, entry.price, entry.rate,
                     entry.exchange_rate, entry.days, entry.value, entry.note]
         ).map_err(db_error)?;
         let financing_total: f64 = transaction.query_row(
-            "SELECT COALESCE(SUM(value), 0) FROM t_financing WHERE trade_id = ?1 AND is_deleted = 0",
+            "SELECT COALESCE(SUM(value), 0)
+               FROM t_financing
+              WHERE trade_id = ?1
+                AND is_deleted = 0",
             [entry.trade_id],
             |row| row.get(0),
         ).map_err(db_error)?;
         let profit_loss_total = if is_closed
         {
-            Some(net_profit_loss(
-                is_long,
-                quantity,
+            Some(calculate_profit_loss(
                 price_buy,
+                shares_buy,
                 price_sell,
-                exchange_rate_buy,
-                exchange_rate_sell,
-                commission_buy,
-                tax_buy,
-                commission_sell,
-                tax_sell,
-                cost_other,
-                financing_total,
-            )?)
+                shares_sell,
+                trade_type(is_long)
+            ))
+        }
+        else
+        {
+            None
+        };
+        let profit_loss_total_converted = if profit_loss_total.is_some()
+        {
+            Some(convert_from_orig(profit_loss_total.unwrap(), entry.exchange_rate))
         }
         else
         {
@@ -619,10 +639,12 @@ impl Store
         };
         transaction
             .execute(
-                "UPDATE t_trade_calculated SET profit_loss_total = ?1,
-                date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE trade_calculated_id = ?2",
-                params![profit_loss_total, calculated_id],
+                "UPDATE t_trade_calculated
+                    SET profit_loss_total = ?1,
+                        profit_loss_total_converted = ?2,
+                        date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE trade_calculated_id = ?3",
+                params![profit_loss_total, profit_loss_total_converted, calculated_id],
             )
             .map_err(db_error)?;
         transaction.commit().map_err(db_error)?;
@@ -630,7 +652,7 @@ impl Store
     }
 }
 
-fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss_total: f64) -> Result<(), String>
+fn record_pool_profit_loss_total(transaction: &Transaction<'_>, profit_loss_total: f64) -> Result<(), String>
 {
     let current: f64 = transaction
         .query_row(
@@ -647,204 +669,31 @@ fn record_pool_profit_loss(transaction: &Transaction<'_>, profit_loss_total: f64
         return Err("Closing this trade would make the pool balance invalid".into());
     }
     transaction
-        .execute("INSERT INTO t_pool(pool_value) VALUES (?1)", [updated])
+        .execute("INSERT INTO t_pool(pool_value, pool_value) VALUES (?1)", [updated])
         .map_err(db_error)?;
     Ok(())
 }
 
-fn trade_calculations(
-    trade: &NewTrade,
-    pool_value: f64,
-    financing_total: f64,
-) -> Result<(Option<f64>, f64, Option<f64>, Option<f64>, Option<f64>, Option<f64>), String>
+fn record_pool_profit_loss_total_converted(transaction: &Transaction<'_>, profit_loss_total_converted: f64) -> Result<(), String>
 {
-    let stoploss = match trade.risk_percent
-    {
-        Some(percent) => Some(calculate_trade_stoploss(
-            percent, pool_value, trade.price_buy, trade.quantity, trade.exchange_rate_buy,
-            trade.commission_buy + trade.commission_sell + trade.tax_buy + trade.tax_sell,
-            trade.is_long,
-        )?),
-        None => None,
-    };
-    let risk_initial = if let Some(stoploss) = stoploss
-    {
-        // The calculator uses integer shares and percentage taxes. A single
-        // share at the full position value preserves fractional quantities;
-        // the average fixed cost covers both sides of a stopped trade.
-        calculate_risk_initial(
-            convert_from_orig(trade.price_buy, trade.exchange_rate_buy) * trade.quantity,
-            1,
-            0.0,
-            (trade.commission_buy + trade.commission_sell + trade.tax_buy + trade.tax_sell) / 2.0,
-            convert_from_orig(stoploss, trade.exchange_rate_buy) * trade.quantity,
-            trade.is_long,
+    let current: f64 = transaction
+        .query_row(
+            "SELECT pool_value FROM t_pool ORDER BY pool_id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
         )
-    }
-    else
+        .optional()
+        .map_err(db_error)?
+        .ok_or("No pool balance exists")?;
+    let updated = current + profit_loss_total_converted;
+    if !updated.is_finite() || updated < 0.0
     {
-        trade.risk_initial // Existing trades without a recorded risk percentage.
-    };
-    if !risk_initial.is_finite() || risk_initial < 0.0
-    {
-        return Err("Initial risk must be finite and nonnegative; check the stop loss".into());
+        return Err("Closing this trade would make the pool balance invalid".into());
     }
-    let profit_loss = trade.date_sell.as_ref().map(|_| {
-        let price_buy = convert_from_orig(trade.price_buy, trade.exchange_rate_buy);
-        let price_sell = convert_from_orig(trade.price_sell, trade.exchange_rate_sell);
-        calculate_profit_loss(
-            price_buy * trade.quantity,
-            1,
-            price_sell * trade.quantity,
-            1,
-            trade_type(trade.is_long),
-        )
-    });
-    if profit_loss.is_some_and(|value| !value.is_finite())
-    {
-        return Err("Calculated P/L is too large".into());
-    }
-    let profit_loss_total = trade
-        .date_sell
-        .as_ref()
-        .map(|_| {
-            net_profit_loss(
-                trade.is_long,
-                trade.quantity,
-                trade.price_buy,
-                trade.price_sell,
-                trade.exchange_rate_buy,
-                trade.exchange_rate_sell,
-                trade.commission_buy,
-                trade.tax_buy,
-                trade.commission_sell,
-                trade.tax_sell,
-                trade.cost_other,
-                financing_total,
-            )
-        })
-        .transpose()?;
-    let r_multiple = profit_loss
-        .filter(|_| risk_initial > 0.0)
-        .map(|pl| calculate_r_multiple(pl, risk_initial));
-    if r_multiple.is_some_and(|value| !value.is_finite())
-    {
-        return Err("Calculated R is too large".into());
-    }
-    let risk_actual = profit_loss.map(|pl| {
-        calculate_risk_actual(
-            convert_from_orig(trade.price_buy, trade.exchange_rate_buy) * trade.quantity,
-            1,
-            0.0,
-            trade.commission_buy + trade.tax_buy,
-            convert_from_orig(trade.price_sell, trade.exchange_rate_sell) * trade.quantity,
-            1,
-            0.0,
-            trade.commission_sell + trade.tax_sell,
-            risk_initial,
-            pl,
-            trade_type(trade.is_long),
-        )
-    });
-    if risk_actual.is_some_and(|value| !value.is_finite() || value < 0.0)
-    {
-        return Err("Calculated actual risk is invalid".into());
-    }
-    Ok((
-        stoploss,
-        risk_initial,
-        risk_actual,
-        profit_loss,
-        profit_loss_total,
-        r_multiple,
-    ))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn calculate_trade_stoploss(
-    risk_percent: f64,
-    pool: f64,
-    price_buy: f64,
-    quantity: f64,
-    exchange_rate_buy: f64,
-    round_trip_cost: f64,
-    is_long: bool,
-) -> Result<f64, String>
-{
-    if !risk_percent.is_finite() || risk_percent < 0.0 || !pool.is_finite() || pool < 0.0
-        || !price_buy.is_finite() || price_buy < 0.0 || !quantity.is_finite() || quantity <= 0.0
-        || !exchange_rate_buy.is_finite() || exchange_rate_buy <= 0.0
-        || !round_trip_cost.is_finite() || round_trip_cost < 0.0
-    {
-        return Err("Invalid input for stoploss calculation".into());
-    }
-    let risk_input = calculate_risk_input(pool, risk_percent);
-    if !risk_input.is_finite()
-    {
-        return Err("Risk input is too large".into());
-    }
-    // The calculator takes integer shares. One share at the position's EUR
-    // value preserves fractional quantities and absolute transaction costs.
-    let price_eur = convert_from_orig(price_buy, exchange_rate_buy) * quantity;
-    let stoploss_eur = calculate_stoploss(
-        price_eur, 1, 0.0, round_trip_cost / 2.0, risk_percent, pool, is_long,
-    );
-    let stoploss = stoploss_eur / exchange_rate_buy / quantity;
-    if !stoploss.is_finite() || stoploss < 0.0
-    {
-        return Err("Calculated stoploss is invalid; check the risk, price, and quantity".into());
-    }
-    Ok(stoploss)
-}
-
-fn trade_type(is_long: bool) -> TradeType
-{
-    if is_long
-    {
-        TradeType::Long
-    }
-    else
-    {
-        TradeType::Short
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn net_profit_loss(
-    is_long: bool,
-    quantity: f64,
-    price_buy: f64,
-    price_sell: f64,
-    exchange_rate_buy: f64,
-    exchange_rate_sell: f64,
-    commission_buy: f64,
-    tax_buy: f64,
-    commission_sell: f64,
-    tax_sell: f64,
-    cost_other: f64,
-    financing_total: f64,
-) -> Result<f64, String>
-{
-    let price_buy = convert_from_orig(price_buy, exchange_rate_buy);
-    let price_sell = convert_from_orig(price_sell, exchange_rate_sell);
-    // The library accepts integer shares and percentage taxes. Use one share at the
-    // full position value, and pass the database's absolute taxes as fixed costs.
-    let result = calculate_profit_loss_total(
-        price_buy * quantity,
-        1,
-        0.0,
-        commission_buy + tax_buy,
-        price_sell * quantity,
-        1,
-        0.0,
-        commission_sell + tax_sell + cost_other + financing_total,
-        trade_type(is_long),
-    );
-    if !result.is_finite()
-    {
-        return Err("Calculated total P/L is too large".into());
-    }
-    Ok(result)
+    transaction
+        .execute("INSERT INTO t_pool(pool_value) VALUES (?1)", [updated, ])
+        .map_err(db_error)?;
+    Ok(())
 }
 
 fn db_error(error: rusqlite::Error) -> String
