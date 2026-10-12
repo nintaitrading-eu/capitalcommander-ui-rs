@@ -33,10 +33,10 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
     String,
 >
 {
-    let stoploss_initial = match (trade.stoploss_initial, trade.risk_percent)
+    let stoploss_initial = match (trade.stoploss_initial, trade.risk_percent_initial)
     {
         (Some(stoploss_initial), _) => Some(stoploss_initial),
-        (None, Some(risk_percent)) => Some(calculate_stoploss_initial(
+        (None, Some(risk_percent_initial)) => Some(calculate_stoploss_initial(
             trade.price_buy,
             trade.shares_buy,
             trade.tax_buy,

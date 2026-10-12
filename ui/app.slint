@@ -48,7 +48,8 @@ export struct TradeRow
     commission-sell: string,
     tax-sell: string,
     cost-other: string,
-    risk-percent: string,
+    risk-percent-initial: string,
+    risk-percent-actual: string,
     stoploss-initial: string,
     stoploss-actual: string,
     trade-pool: string,
@@ -652,9 +653,9 @@ export component AppWindow inherits Window
                                     commission-sell.text = trade.commission-sell;
                                     tax-sell.text = trade.tax-sell;
                                     cost-other.text = trade.cost-other;
-                                    risk.text = trade.risk-percent;
+                                    risk.text = trade.risk-percent-initial;
                                     stoploss.text = trade.stoploss-initial;
-                                    risk-mode.current-value = trade.risk-percent == "" ? "Stoploss" : "Risk %";
+                                    risk-mode.current-value = trade.risk-percent-initial == "" ? "Stoploss" : "Risk %";
                                     root.trade-pool = trade.trade-pool == "" ? root.current-pool-exact : trade.trade-pool;
                                 }
                             }
