@@ -630,6 +630,13 @@ fn set_markets(window: &AppWindow, journal: &Journal)
 
 fn set_parameters(window: &AppWindow, journal: &Journal)
 {
+    window.set_base_currency(
+        journal.parameters.iter()
+            .find(|parameter| parameter.name == "base_currency")
+            .map(|parameter| parameter.value.as_str())
+            .unwrap_or_default()
+            .into(),
+    );
     let rows: Vec<_> = journal.parameters.iter().map(|parameter| ParameterRow {
         id: parameter.id as i32,
         name: parameter.name.clone().into(),
