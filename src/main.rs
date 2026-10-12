@@ -139,8 +139,6 @@ fn main() -> Result<(), slint::PlatformError>
          price_sell,
          shares_buy,
          shares_sell,
-         exchange_rate_buy,
-         exchange_rate_sell,
          commission_buy,
          commission_sell,
          tax_buy,
@@ -153,8 +151,6 @@ fn main() -> Result<(), slint::PlatformError>
                 price_sell,
                 shares_buy,
                 shares_sell,
-                exchange_rate_buy,
-                exchange_rate_sell,
                 commission_buy,
                 commission_sell,
                 tax_buy,
@@ -166,10 +162,14 @@ fn main() -> Result<(), slint::PlatformError>
             inputs
                 .and_then(|values| {
                     Some(calculate_stoploss(
-                        if side == "Long" { values[2] } else { values[3] },
-                        if side == "Long" { values[4] as i32 } else { values[5] as i32 },
-                        if side == "Long" { values[6] } else { values[7] },
-                        if side == "Long" { values[8] } else { values[9] },
+                        values[2],
+                        values[4] as i32,
+                        values[8],
+                        values[6],
+                        values[3],
+                        values[5] as i32,
+                        values[9],
+                        values[7],
                         values[1],
                         values[0],
                         trade_type(side == "Long"),
@@ -183,6 +183,8 @@ fn main() -> Result<(), slint::PlatformError>
 
     /* Event: on_calculate_risk_percent */
 
+    // TODO: Fix for the new calculate_risk_percentage method from the lib.
+    //       Also requires the callback to be fixed.
     /*window.on_calculate_risk_percent(
         |pool,
          stoploss,
@@ -210,7 +212,7 @@ fn main() -> Result<(), slint::PlatformError>
             .collect();
             inputs
                 .and_then(|values| {
-                    calculate_trade_risk_percent(
+                    calculate_risk_percentage(
                         values[1],
                         values[0],
                         values[2],
@@ -218,8 +220,7 @@ fn main() -> Result<(), slint::PlatformError>
                         values[4],
                         values[5] + values[6] + values[7] + values[8],
                         trade_type(side == "Long"),
-                    )
-                    .ok()
+                    ), values[0])
                 })
                 .map(|value| format!("{value:.4}"))
                 .unwrap_or_else(|| "—".into())
