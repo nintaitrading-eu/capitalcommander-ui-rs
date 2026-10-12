@@ -37,6 +37,7 @@ fn main() -> Result<(), slint::PlatformError>
     window.set_source_label(database_path.display().to_string().into());
     set_products(&window, &journal.borrow());
     set_markets(&window, &journal.borrow());
+    set_parameters(&window, &journal.borrow());
 
     refresh(&window, &journal.borrow());
 
@@ -483,6 +484,8 @@ fn main() -> Result<(), slint::PlatformError>
         },
     );
 
+    /* Event: on_save_product */
+
     let weak = window.as_weak();
     let model = journal.clone();
     let database = store.clone();
@@ -534,6 +537,47 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    /* Event: on_save_parameter */
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_save_parameter(move |id, name, value, value_default, description, datatype| {
+        if let Some(window) = weak.upgrade()
+        {
+            let result = (|| -> Result<(), String> {
+                database.borrow_mut().save_parameter(
+                    id as i64,
+                    &name,
+                    &value,
+                    &value_default,
+                    &description,
+                    &datatype,
+                )?;
+                *model.borrow_mut() = database.borrow().load()?;
+                Ok(())
+            })();
+            match result
+            {
+                Ok(()) =>
+                {
+                    set_parameters(&window, &model.borrow());
+                    window.set_status("Parameter saved".into());
+                    true
+                }
+                Err(error) =>
+                {
+                    window.set_status(error.into());
+                    false
+                }
+            }
+        }
+        else
+        {
+            false
+        }
+    });
+
     /* Event: on_quit */
 
     window.on_quit(|| {
@@ -582,6 +626,19 @@ fn set_markets(window: &AppWindow, journal: &Journal)
         })
         .collect();
     window.set_market_details(ModelRc::from(Rc::new(VecModel::from(details))));
+}
+
+fn set_parameters(window: &AppWindow, journal: &Journal)
+{
+    let rows: Vec<_> = journal.parameters.iter().map(|parameter| ParameterRow {
+        id: parameter.id as i32,
+        name: parameter.name.clone().into(),
+        value: parameter.value.clone().into(),
+        value_default: parameter.value_default.clone().into(),
+        description: parameter.description.clone().into(),
+        datatype: parameter.datatype.clone().into(),
+    }).collect();
+    window.set_parameters(ModelRc::from(Rc::new(VecModel::from(rows))));
 }
 
 fn strings(values: Vec<String>) -> ModelRc<SharedString>

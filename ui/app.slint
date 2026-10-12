@@ -96,6 +96,16 @@ export struct MarketRow
     country: string,
 }
 
+export struct ParameterRow
+{
+    id: int,
+    name: string,
+    value: string,
+    value-default: string,
+    description: string,
+    datatype: string,
+}
+
 export component AppWindow inherits Window
 {
 
@@ -134,6 +144,13 @@ export component AppWindow inherits Window
     in-out property <[ProductRow]> product-details;
     in-out property <[string]> market-codes;
     in-out property <[MarketRow]> market-details;
+    in-out property <[ParameterRow]> parameters;
+    private property <int> editing-parameter-id: 0;
+    private property <string> parameter-name: "";
+    private property <string> parameter-value: "";
+    private property <string> parameter-default: "";
+    private property <string> parameter-description: "";
+    private property <string> parameter-datatype: "string";
     in-out property <[TradeRow]> trades;
     private property <int> editing-trade-id: 0;
     private property <string> trade-pool: root.current-pool-exact;
@@ -165,6 +182,7 @@ export component AppWindow inherits Window
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
     callback save-market(string, string, string);
+    callback save-parameter(int, string, string, string, string, string) -> bool;
     callback quit();
 
 /*******************************************************************************
@@ -195,6 +213,7 @@ export component AppWindow inherits Window
             title: "Admin";
             MenuItem { title: "Products"; activated => { root.page = "Products"; } }
             MenuItem { title: "Markets"; activated => { root.page = "Markets"; } }
+            MenuItem { title: "Parameter"; activated => { root.page = "Parameter"; } }
         }
     }
 
@@ -826,6 +845,98 @@ export component AppWindow inherits Window
                             Text { text: market.code; width: 170px; color: root.primary; font-weight: 600; }
                             Text { text: market.name; width: 240px; color: root.secondary; }
                             Text { text: market.country; color: root.accent; }
+                        }
+                    }
+                }
+            }
+        }
+
+/*******************************************************************************
+ * Parameter
+ *******************************************************************************/
+        if root.page == "Parameter": VerticalBox
+        {
+            spacing: 10px;
+            Text
+            {
+                text: root.editing-parameter-id == 0 ? "Add parameter" : "Edit parameter #" + root.editing-parameter-id;
+                color: root.primary;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            HorizontalBox
+            {
+                spacing: 8px;
+                VerticalBox { Text { text: "Name"; color: root.secondary; } LineEdit { text <=> root.parameter-name; placeholder-text: "Parameter name"; } }
+                VerticalBox { Text { text: "Value"; color: root.secondary; } LineEdit { text <=> root.parameter-value; placeholder-text: "Value"; } }
+                VerticalBox { Text { text: "Default value"; color: root.secondary; } LineEdit { text <=> root.parameter-default; placeholder-text: "Default value"; } }
+                VerticalBox { Text { text: "Datatype"; color: root.secondary; } LineEdit { text <=> root.parameter-datatype; placeholder-text: "e.g. string"; } }
+            }
+            HorizontalBox
+            {
+                spacing: 8px;
+                VerticalBox { Text { text: "Description"; color: root.secondary; } LineEdit { text <=> root.parameter-description; placeholder-text: "Description"; } }
+            }
+            Button
+            {
+                enabled: root.editing-parameter-id != 0;
+                text: "Save changes";
+                clicked =>
+                {
+                    if root.save-parameter(root.editing-parameter-id, root.parameter-name, root.parameter-value, root.parameter-default, root.parameter-description, root.parameter-datatype)
+                    {
+                        root.editing-parameter-id = 0;
+                        root.parameter-name = "";
+                        root.parameter-value = "";
+                        root.parameter-default = "";
+                        root.parameter-description = "";
+                        root.parameter-datatype = "string";
+                    }
+                }
+            }
+            Text { text: "Parameters"; color: root.primary; font-size: 17px; font-weight: 600; }
+            Text { text: "Select a parameter below to edit it."; color: root.secondary; }
+            Rectangle { height: 1px; background: root.divider; }
+            HorizontalBox
+            {
+                spacing: 14px;
+                Text { text: "ID"; width: 55px; color: root.muted; }
+                Text { text: "NAME"; width: 180px; color: root.muted; }
+                Text { text: "VALUE"; width: 150px; color: root.muted; }
+                Text { text: "DEFAULT"; width: 150px; color: root.muted; }
+                Text { text: "TYPE"; width: 100px; color: root.muted; }
+                Text { text: "DESCRIPTION"; color: root.muted; }
+            }
+            ScrollView
+            {
+                vertical-stretch: 1;
+                VerticalBox
+                {
+                    spacing: 3px;
+                    for parameter in root.parameters: Rectangle
+                    {
+                        height: 40px; background: root.surface; border-radius: 4px;
+                        HorizontalBox
+                        {
+                            padding: 9px; spacing: 14px;
+                            Text { text: "#" + parameter.id; width: 55px; color: root.muted; }
+                            Text { text: parameter.name; width: 180px; color: root.primary; font-weight: 600; }
+                            Text { text: parameter.value; width: 150px; color: root.accent; }
+                            Text { text: parameter.value-default; width: 150px; color: root.secondary; }
+                            Text { text: parameter.datatype; width: 100px; color: root.secondary; }
+                            Text { text: parameter.description; color: root.secondary; }
+                        }
+                        TouchArea
+                        {
+                            clicked =>
+                            {
+                                root.editing-parameter-id = parameter.id;
+                                root.parameter-name = parameter.name;
+                                root.parameter-value = parameter.value;
+                                root.parameter-default = parameter.value-default;
+                                root.parameter-description = parameter.description;
+                                root.parameter-datatype = parameter.datatype;
+                            }
                         }
                     }
                 }

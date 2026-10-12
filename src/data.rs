@@ -21,6 +21,17 @@ pub struct Market
 }
 
 #[derive(Clone, Debug)]
+pub struct Parameter
+{
+    pub id: i64,
+    pub name: String,
+    pub value: String,
+    pub value_default: String,
+    pub description: String,
+    pub datatype: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct Trade
 {
     pub id: i64,
@@ -107,6 +118,7 @@ pub struct Journal
 {
     pub products: Vec<Product>,
     pub markets: Vec<Market>,
+    pub parameters: Vec<Parameter>,
     pub trades: Vec<Trade>,
     pub financing: Vec<Financing>,
     pub pool_value_converted: Option<f64>,
@@ -175,6 +187,27 @@ impl Store
         for row in rows
         {
             markets.push(row.map_err(db_error)?);
+        }
+        let mut parameters = Vec::new();
+        let mut statement = self
+            .connection
+            .prepare("SELECT parameter_id, name, value, value_default, description, datatype FROM t_parameter WHERE is_deleted = 0 ORDER BY name COLLATE NOCASE")
+            .map_err(db_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(Parameter {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    value: row.get(2)?,
+                    value_default: row.get(3)?,
+                    description: row.get(4)?,
+                    datatype: row.get(5)?,
+                })
+            })
+            .map_err(db_error)?;
+        for row in rows
+        {
+            parameters.push(row.map_err(db_error)?);
         }
         let mut products = Vec::new();
         let mut statement = self
@@ -290,10 +323,61 @@ impl Store
         Ok(Journal {
             products,
             markets,
+            parameters,
             trades,
             financing,
             pool_value_converted,
         })
+    }
+
+    pub fn save_parameter(&mut self, id: i64, name: &str, value: &str, value_default: &str, description: &str, datatype: &str) -> Result<(), String>
+    {
+        let name = name.trim();
+        let datatype = datatype.trim();
+        if name.is_empty()
+        {
+            return Err("Parameter name is required".into());
+        }
+        if datatype.is_empty()
+        {
+            return Err("Datatype is required".into());
+        }
+        for (label, value, limit) in [
+            ("Name", name, 50),
+            ("Value", value, 512),
+            ("Default value", value_default, 512),
+            ("Description", description, 4000),
+            ("Datatype", datatype, 50),
+        ]
+        {
+            if value.chars().count() > limit
+            {
+                return Err(format!("{label} must be at most {limit} characters"));
+            }
+        }
+        if id == 0
+        {
+            self.connection
+                .execute(
+                    "INSERT INTO t_parameter(name, value, value_default, description, datatype) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![name, value, value_default, description, datatype],
+                )
+                .map_err(db_error)?;
+        }
+        else
+        {
+            let changed = self.connection
+                .execute(
+                    "UPDATE t_parameter SET name = ?1, value = ?2, value_default = ?3, description = ?4, datatype = ?5, date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE parameter_id = ?6 AND is_deleted = 0",
+                    params![name, value, value_default, description, datatype, id],
+                )
+                .map_err(db_error)?;
+            if changed == 0
+            {
+                return Err(format!("Parameter #{id} does not exist"));
+            }
+        }
+        Ok(())
     }
 
     pub fn add_market(&mut self, code: &str, name: &str, country: &str) -> Result<(), String>
