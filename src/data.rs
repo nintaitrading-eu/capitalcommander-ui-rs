@@ -57,7 +57,8 @@ pub struct Trade
     pub risk_percent: Option<f64>,
     pub trade_pool: Option<f64>,
     pub trade_pool_converted: Option<f64>,
-    pub stoploss: Option<f64>,
+    pub stoploss_initial: Option<f64>,
+    pub stoploss_actual: Option<f64>,
     pub profit_loss: Option<f64>,
     pub profit_loss_converted: Option<f64>,
     pub profit_loss_total: Option<f64>,
@@ -98,7 +99,8 @@ pub struct NewTrade
     pub risk_initial: f64,
     pub risk_percent: Option<f64>,
     pub trade_pool: Option<f64>,
-    pub stoploss: Option<f64>,
+    pub stoploss_initial: Option<f64>,
+    pub stoploss_actual: Option<f64>,
 }
 
 pub struct NewFinancing
@@ -244,7 +246,7 @@ impl Store
                     cost.tax_sell, cost.other, calc.risk_initial, calc.risk_initial_converted, calc.profit_loss, calc.profit_loss_converted,
                     calc.profit_loss_total, calc.profit_loss_total_converted,
                     t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual, calc.risk_actual_converted,
-                    calc.risk_percent, pool.pool_value, pool.pool_value_converted, calc.stoploss
+                    calc.risk_percent, pool.pool_value, pool.pool_value_converted, calc.stoploss_initial, calc.stoploss_actual
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
              JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
              JOIN t_trade_calculated calc ON calc.trade_calculated_id = t.trade_calculated_id
@@ -282,7 +284,8 @@ impl Store
                     risk_percent: row.get(24)?,
                     trade_pool: row.get(25)?,
                     trade_pool_converted: row.get(26)?,
-                    stoploss: row.get(27)?,
+                    stoploss_initial: row.get(27)?,
+                    stoploss_actual: row.get(28)?,
                 })
             })
             .map_err(db_error)?;
@@ -486,18 +489,19 @@ impl Store
             )
             .map_err(db_error)?;
         let cost_id = transaction.last_insert_rowid();
-        let (stoploss, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, 0.0)?;
+        let (stoploss_initial, stoploss_actual, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, 0.0)?;
         transaction
             .execute(
-                "INSERT INTO t_trade_calculated(risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, risk_percent, stoploss, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple)
-                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                "INSERT INTO t_trade_calculated(risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, risk_percent, stoploss_initial, stoploss_actual, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple)
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     risk_initial,
                     risk_initial_converted,
                     risk_actual,
                     risk_actual_converted,
                     trade.risk_percent,
-                    stoploss,
+                    stoploss_initial,
+                    stoploss_actual,
                     profit_loss,
                     profit_loss_converted,
                     profit_loss_total,
@@ -568,7 +572,7 @@ impl Store
                 ],
             )
             .map_err(db_error)?;
-        let (stoploss, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, financing_total)?;
+        let (stoploss_initial, stoploss_actual, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, financing_total)?;
         transaction
             .execute(
                 "UPDATE t_trade SET product_id = ?1, date_buy = ?2, date_sell = ?3, is_long = ?4,
@@ -598,12 +602,13 @@ impl Store
                         risk_actual = ?3,
                         risk_actual_converted = ?4,
                         risk_percent = ?5,
-                        stoploss = ?6,
-                        profit_loss = ?7,
-                        profit_loss_converted = ?8,
-                        profit_loss_total = ?9,
-                        profit_loss_total_converted = ?10,
-                        r_multiple = ?11,
+                        stoploss_initial = ?6,
+                        stoploss_actual = ?7,
+                        profit_loss = ?8,
+                        profit_loss_converted = ?9,
+                        profit_loss_total = ?10
+                        profit_loss_total_converted = ?11,
+                        r_multiple = ?12,
              date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
              WHERE trade_calculated_id = ?12",
                 params![
@@ -612,7 +617,8 @@ impl Store
                     risk_actual,
                     risk_actual_converted,
                     trade.risk_percent,
-                    stoploss,
+                    stoploss_initial,
+                    stoploss_actual,
                     profit_loss,
                     profit_loss_converted,
                     profit_loss_total,

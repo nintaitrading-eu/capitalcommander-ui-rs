@@ -2,7 +2,8 @@ use crate::data::{NewTrade, Trade};
 use libcalculatorfinance::{
     convert_from_orig,
     calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple,
-    calculate_risk_actual, calculate_risk_initial, calculate_stoploss, TradeType,
+    calculate_risk, calculate_risk_initial,
+    calculate_stoploss, calculate_stoploss_initial, TradeType,
 };
 
 impl Trade
@@ -18,6 +19,7 @@ impl Trade
 pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_total: f64) -> Result<
     (
         Option<f64>,
+        Option<f64>,
         f64,
         f64,
         Option<f64>,
@@ -31,10 +33,10 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
     String,
 >
 {
-    let stoploss = match (trade.stoploss, trade.risk_percent)
+    let stoploss_initial = match (trade.stoploss_initial, trade.risk_percent)
     {
-        (Some(stoploss), _) => Some(stoploss),
-        (None, Some(risk_percent)) => Some(calculate_stoploss(
+        (Some(stoploss_initial), _) => Some(stoploss_initial),
+        (None, Some(risk_percent)) => Some(calculate_stoploss_initial(
             trade.price_buy,
             trade.shares_buy,
             trade.tax_buy,
@@ -49,14 +51,18 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
         )),
         (None, None) => None,
     };
-    let risk_initial = if let Some(stoploss) = stoploss
+    let risk_initial = if let Some(stoploss_initial) = stoploss_initial
     {
         calculate_risk_initial(
             trade.price_buy,
             trade.shares_buy,
             trade.tax_buy,
             trade.commission_buy,
-            stoploss,
+            trade.price_sell,
+            trade.shares_sell,
+            trade.tax_sell,
+            trade.commission_sell,
+            stoploss_initial,
             trade_type(trade.is_long),
         )
     }
@@ -95,7 +101,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
         .filter(|_| risk_initial > 0.0)
         .map(|pl| calculate_r_multiple(pl, risk_initial));
     let risk_actual = profit_loss.map(|pl| {
-        calculate_risk_actual(
+        calculate_risk(
             trade.price_buy,
             trade.shares_buy,
             trade.tax_buy,
@@ -109,6 +115,22 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
             trade_type(trade.is_long),
         )
     });
+    let stoploss_actual = profit_loss.map(|pl| {
+        calculate_stoploss(
+            trade.price_buy,
+            trade.shares_buy,
+            trade.tax_buy,
+            trade.commission_buy,
+            trade.price_sell,
+            trade.shares_sell,
+            trade.tax_sell,
+            trade.commission_sell,
+            risk_actual.unwrap(),
+            pl,
+            trade_type(trade.is_long),
+        )
+    });
+
 
     let risk_initial_converted = convert_from_orig(risk_initial, trade.exchange_rate_buy);
     let risk_actual_converted = if risk_actual.is_some()
@@ -140,7 +162,8 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
     };
 
     Ok((
-        stoploss,
+        stoploss_initial,
+        stoploss_actual,
         risk_initial,
         risk_initial_converted,
         risk_actual,

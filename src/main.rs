@@ -5,7 +5,7 @@ mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_risk_input, calculate_risk_initial, calculate_stoploss, calculate_risk_percentage_input, calculate_percentage_of, convert_from_orig};
+use libcalculatorfinance::{calculate_risk_initial, calculate_stoploss_initial, calculate_stoploss, calculate_risk_percentage_initial, calculate_percentage_of, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -112,28 +112,59 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
-    /* Event: on_calculate_risk_input */
+    /* Event: on_calculate_risk_initial*/
 
-    window.on_calculate_risk_input(|pool, percent| {
-        let value = pool
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .zip(percent.trim().parse::<f64>().ok())
-            .filter(|(pool, percent)| {
-                pool.is_finite() && *pool >= 0.0 && percent.is_finite() && *percent >= 0.0
-            })
-            .map(|(pool, percent)| calculate_risk_input(pool, percent))
-            .filter(|value| value.is_finite());
-        value
-            .map(|value| format!("{value:.2}"))
-            .unwrap_or_else(|| "—".into())
-            .into()
-    });
+    window.on_calculate_risk_initial(
+        |pool,
+         stoploss,
+         price_buy,
+         price_sell,
+         shares_buy,
+         shares_sell,
+         commission_buy,
+         commission_sell,
+         tax_buy,
+         tax_sell,
+         side| {
+            let inputs: Option<Vec<f64>> = [
+                pool,
+                stoploss,
+                price_buy,
+                price_sell,
+                shares_buy,
+                shares_sell,
+                commission_buy,
+                commission_sell,
+                tax_buy,
+                tax_sell,
+            ]
+            .iter()
+            .map(|value| value.trim().parse::<f64>().ok())
+            .collect();
+            inputs
+                .and_then(|values| {
+                    Some(calculate_risk_initial(
+                        values[1],
+                        values[3] as i32,
+                        values[7],
+                        values[5],
+                        values[2],
+                        values[4] as i32,
+                        values[8],
+                        values[6],
+                        values[0],
+                        trade_type(side == "Long"),
+                    ))
+                })
+                .map(|value| format!("{value:.4}"))
+                .unwrap_or_else(|| "—".into())
+                .into()
+        },
+    );
 
-    /* Event: on_calculate_stoploss */
+    /* Event: on_calculate_stoploss_initial */
     
-    window.on_calculate_stoploss(
+    window.on_calculate_stoploss_initial(
         |pool,
          percent,
          price_buy,
@@ -162,7 +193,7 @@ fn main() -> Result<(), slint::PlatformError>
             .collect();
             inputs
                 .and_then(|values| {
-                    Some(calculate_stoploss(
+                    Some(calculate_stoploss_initial(
                         values[2],
                         values[4] as i32,
                         values[8],
@@ -182,9 +213,9 @@ fn main() -> Result<(), slint::PlatformError>
         },
     );
 
-    /* Event: on_calculate_risk_percentage */
+    /* Event: on_calculate_risk_percentage_initial */
 
-    window.on_calculate_risk_percentage(
+    window.on_calculate_risk_percentage_initial(
         |price_buy,
          shares_buy,
          tax_buy,
@@ -213,7 +244,7 @@ fn main() -> Result<(), slint::PlatformError>
             .collect();
             inputs
                 .and_then(|values| {
-                    Some(calculate_risk_percentage_input(
+                    Some(calculate_risk_percentage_initial(
                         values[0],
                         values[1] as i32,
                         values[2],
@@ -276,8 +307,8 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         return Err("Sell date must be on or after buy date".into());
                     }
-                    let shares_buy = validated_as_positive(&shares_buy, "Shares (B)")? as i32;
-                    let shares_sell = validated_as_positive(&shares_sell, "Shares (S)")? as i32;
+                    let shares_buy = validated_as_positive(&shares_buy, "Shares buy")? as i32;
+                    let shares_sell = validated_as_positive(&shares_sell, "Shares sell")? as i32;
                     let price_buy = validated_as_positive(&price_buy, "Buy price")?;
                     let price_sell = validated_as_positive(&price_sell, "Sell price")?;
                     let exchange_rate_buy = validated_as_positive(&exchange_rate_buy, "Buy exchange rate")?;
@@ -287,7 +318,7 @@ fn main() -> Result<(), slint::PlatformError>
                     let commission_sell = validated_as_positive(&commission_sell, "Commission sell")?;
                     let tax_sell = validated_as_positive(&tax_sell, "Tax sell")?;
                     let cost_other = validated_as_positive(&cost_other, "Other costs")?;
-                    let entered_stoploss = if stoploss.trim().is_empty()
+                    let stoploss_initial = if stoploss.trim().is_empty()
                     {
                         None
                     }
@@ -295,19 +326,23 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         Some(validated_as_positive(&stoploss, "Stoploss")?)
                     };
-                    if !risk.trim().is_empty() && entered_stoploss.is_some()
+                    if !risk.trim().is_empty() && stoploss_initial.is_some()
                     {
                         return Err("Enter either risk % or stoploss".into());
                     }
                     let trade_pool = validated_as_positive(&trade_pool, "Risk pool")?;
-                    let risk_percent = if let Some(stoploss) = entered_stoploss
+                    let risk_percent = if let Some(stoploss) = stoploss_initial 
                     {
                         Some(calculate_percentage_of(calculate_risk_initial(
                             price_buy,
                             shares_buy,
                             tax_buy,
                             commission_buy,
-                            entered_stoploss.unwrap(),
+                            price_sell,
+                            shares_sell,
+                            tax_sell,
+                            commission_sell,
+                            stoploss_initial.unwrap(),
                             trade_type(side == "Long"),
                         ), trade_pool))
                     }
@@ -371,7 +406,15 @@ fn main() -> Result<(), slint::PlatformError>
                         {
                             Some(trade_pool)
                         },
-                        stoploss: entered_stoploss,
+                        stoploss_initial: stoploss_initial,
+                        stoploss_actual: if trade_id != 0
+                        {
+                            None
+                        }
+                        else
+                        {
+                            Some(calculate_stoploss(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, risk_initial, trade_pool, trade_type(is_long)))
+                        },
                     };
                     if trade_id == 0
                     {
@@ -761,8 +804,13 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
-            stoploss: trade
-                .stoploss
+            stoploss_initial: trade
+                .stoploss_initial
+                .map(|value| value.to_string())
+                .unwrap_or_default()
+                .into(),
+            stoploss_actual: trade
+                .stoploss_actual
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
