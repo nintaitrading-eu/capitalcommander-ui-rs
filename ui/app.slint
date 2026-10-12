@@ -161,7 +161,7 @@ export component AppWindow inherits Window
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     pure callback calculate-risk-input(string, string) -> string;
     pure callback calculate-stoploss(string, string, string, string, string, string, string, string, string, string, string) -> string;
-    pure callback calculate-risk-percent(string, string, string, string, string, string, string, string, string, string, string) -> string;
+    pure callback calculate-risk-percentage(string, string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
     callback save-market(string, string, string);
@@ -567,14 +567,12 @@ export component AppWindow inherits Window
                     Text { text: "Risk input"; color: root.secondary; }
                     Text { text: root.calculate-risk-input(root.trade-pool,
                         risk-mode.current-value == "Risk %" ? risk.text :
-                        root.calculate-risk-percent(root.trade-pool, stoploss.text, price-buy.text, shares-buy.text, shares-sell.text,
-                            exchange-rate-buy.text, commission-buy.text, tax-buy.text, commission-sell.text,
-                            tax-sell.text, trade-side.current-value)); color: root.aqua; }
+                        root.calculate-risk-percentage(price-buy.text, shares-buy.text, tax-buy.text,
+                            commission-buy.text, price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text,
+                            stoploss.text, root.trade-pool, trade-side.current-value)); color: root.aqua; }
                     if risk-mode.current-value == "Stoploss": Text { text: "Risk %"; color: root.secondary; }
                     if risk-mode.current-value == "Stoploss": Text {
-                        text: root.calculate-risk-percent(root.trade-pool, stoploss.text, price-buy.text, shares-buy.text, shares-sell.text,
-                            exchange-rate-buy.text, commission-buy.text, tax-buy.text, commission-sell.text,
-                            tax-sell.text, trade-side.current-value); color: root.aqua;
+                        text: root.calculate-risk-percentage(price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text, price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text, stoploss.text, root.trade-pool, trade-side.current-value); color: root.aqua;
                     }
                     Text { text: "Stoploss"; color: root.secondary; }
                     Text { text: risk-mode.current-value == "Stoploss" ? stoploss.text :

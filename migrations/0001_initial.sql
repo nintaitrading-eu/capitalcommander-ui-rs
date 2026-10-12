@@ -118,8 +118,8 @@ CREATE TABLE t_financing (
 
 CREATE INDEX idx_financing_trade ON t_financing(trade_id, date);
 
-INSERT INTO t_pool(pool_value) VALUES
-    (75000.0);
+INSERT INTO t_pool(pool_value, pool_value_converted) VALUES
+    (75000.0, 75000.0);
 INSERT INTO t_product_type(name, description) VALUES
     ('cfd', 'Contracts for difference');
 INSERT INTO t_currency(code, description) VALUES
