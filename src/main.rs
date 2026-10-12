@@ -5,7 +5,7 @@ mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_risk_input, calculate_risk_initial, calculate_stoploss, calculate_risk_percentage, calculate_percentage_of, convert_from_orig};
+use libcalculatorfinance::{calculate_risk_input, calculate_risk_initial, calculate_stoploss, calculate_risk_percentage_input, calculate_percentage_of, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -181,7 +181,7 @@ fn main() -> Result<(), slint::PlatformError>
         },
     );
 
-    /* Event: on_calculate_risk_percent */
+    /* Event: on_calculate_risk_percentage */
 
     window.on_calculate_risk_percentage(
         |price_buy,
@@ -212,7 +212,7 @@ fn main() -> Result<(), slint::PlatformError>
             .collect();
             inputs
                 .and_then(|values| {
-                    Some(calculate_risk_percentage(
+                    Some(calculate_risk_percentage_input(
                         values[0],
                         values[1] as i32,
                         values[2],
