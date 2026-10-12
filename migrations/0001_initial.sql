@@ -16,6 +16,18 @@ CREATE TABLE t_currency (
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+CREATE TABLE t_parameter (
+    parameter_id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE CHECK (length(name) <= 50),
+    value TEXT NOT NULL CHECK (length(value) <= 512),
+    value_default TEXT NOT NULL CHECK (length(value_default) <= 512),
+    description TEXT NOT NULL CHECK (length(description) <= 4000),
+    datatype TEXT NOT NULL CHECK (length(datatype) <= 50),
+    is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
+    date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
 CREATE TABLE t_market (
     market_id INTEGER PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
@@ -126,6 +138,8 @@ INSERT INTO t_currency(code, description) VALUES
     ('EUR', 'Euro'),
     ('USD', 'United States Dollar'),
     ('GBP', 'British Pound');
+INSERT INTO t_parameter(name, value, value_default, description, datatype, date_created) VALUES
+    ('base_currency', 'EUR', 'EUR', 'Base currency', 'string', strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 INSERT INTO t_market(code, name, country) VALUES
     ('cfd other non-share', 'CFD - other non-share', ''),
     ('cfd .gold', 'CFD - World Spot Gold', 'US'),
