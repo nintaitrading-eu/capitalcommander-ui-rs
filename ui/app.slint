@@ -438,7 +438,7 @@ export component AppWindow inherits Window
                             commission-sell.text = "0";
                             tax-sell.text = "0";
                             cost-other.text = "0";
-                            risk.text = "";
+                            risk-percent.text = "";
                             stoploss.text = "";
                             risk-mode.current-value = "Risk %";
                             root.trade-pool = root.current-pool-exact;
@@ -537,7 +537,7 @@ export component AppWindow inherits Window
                     {
                         visible: risk-mode.current-value == "Risk %";
                         Text { text: "Risk %"; color: root.secondary; }
-                        risk := LineEdit { placeholder-text: "Percent of pool"; }
+                        risk-percent := LineEdit { placeholder-text: "Percent of pool"; }
                     }
                     VerticalBox
                     {
@@ -553,7 +553,7 @@ export component AppWindow inherits Window
                         if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
                             date-buy.value, date-sell.value, shares-buy.text, shares-sell.text, price-buy.text,
                             price-sell.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, cost-other.text,
-                            risk-mode.current-value == "Risk %" ? risk.text : "",
+                            risk-mode.current-value == "Risk %" ? risk-percent.text : "",
                             risk-mode.current-value == "Stoploss" ? stoploss.text : "", root.trade-pool)
                         {
                             root.editing-trade-id = 0;
@@ -571,7 +571,7 @@ export component AppWindow inherits Window
                             commission-sell.text = "0";
                             tax-sell.text = "0";
                             cost-other.text = "0";
-                            risk.text = "";
+                            risk-percent.text = "";
                             stoploss.text = "";
                             risk-mode.current-value = "Risk %";
                             root.trade-pool = root.current-pool-exact;
@@ -586,24 +586,41 @@ export component AppWindow inherits Window
                 {
                     Text { text: "Info"; color: root.secondary; font-size: 17px; font-weight: 600; }
                     Rectangle { horizontal-stretch: 1; }
-                    Text { text: "Risk input"; color: root.secondary; }
+                    Text
+                    {
+                         text: "Risk";
+                         color: root.secondary;
+                    }
+                    Text
+                    {
+                        text: risk-mode.current-value == "Risk %"
+                              ? root.calculate-risk-initial(root.trade-pool,
+                                    root.calculate-stoploss-initial(root.trade-pool, risk-percent.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
+                                        tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text, trade-side.current-value),
+                                    price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
+                                    tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text, trade-side.current-value).to-float().to-fixed(2)
+                              : root.calculate-risk-initial(root.trade-pool, stoploss.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
+                                    tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text, trade-side.current-value).to-float().to-fixed(2);
+                        color: root.aqua;
+                    }
+                    Text { text: "Risk %"; color: root.secondary; }
+                    Text
+                    {
+                        text: risk-mode.current_value == "Risk %"
+                              ? risk-percent.text.to-float().to-fixed(2)
+                              : root.calculate-risk-percentage-initial(price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text, price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text, stoploss.text, root.trade-pool, trade-side.current-value).to-float().to-fixed(2);
+                        color: root.aqua;
+                    }
+                    Text { text: "Stoploss"; color: root.secondary; }
                     Text
                     {
                         text: risk-mode.current-value == "Stoploss"
-                              ? stoploss.text
-                              : root.calculate-risk-initial(root.trade-pool, stoploss.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
-                        tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text,
-                        trade-side.current-value);
-                        color: root.aqua; }
-                    if risk-mode.current-value == "Stoploss": Text { text: "Risk %"; color: root.secondary; }
-                    if risk-mode.current-value == "Stoploss": Text {
-                        text: root.calculate-risk-percentage-initial(price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text, price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text, stoploss.text, root.trade-pool, trade-side.current-value); color: root.aqua;
+                              ? stoploss.text.to-float().to-fixed(2)
+                              : root.calculate-stoploss-initial(root.trade-pool, risk-percent.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
+                                    tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text,
+                                    trade-side.current-value).to-float().to-fixed(2);
+                        color: root.aqua;
                     }
-                    Text { text: "Stoploss"; color: root.secondary; }
-                    Text { text: risk-mode.current-value == "Stoploss" ? stoploss.text :
-                        root.calculate-stoploss-initial(root.trade-pool, risk.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
-                        tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text,
-                        trade-side.current-value); color: root.aqua; }
                 }
                 Rectangle { height: 1px; background: root.divider; }
                 HorizontalBox
@@ -653,7 +670,7 @@ export component AppWindow inherits Window
                                     commission-sell.text = trade.commission-sell;
                                     tax-sell.text = trade.tax-sell;
                                     cost-other.text = trade.cost-other;
-                                    risk.text = trade.risk-percent-initial;
+                                    risk-percent.text = trade.risk-percent-initial;
                                     stoploss.text = trade.stoploss-initial;
                                     risk-mode.current-value = trade.risk-percent-initial == "" ? "Stoploss" : "Risk %";
                                     root.trade-pool = trade.trade-pool == "" ? root.current-pool-exact : trade.trade-pool;

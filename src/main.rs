@@ -333,7 +333,7 @@ fn main() -> Result<(), slint::PlatformError>
                     let trade_pool = validated_as_positive(&trade_pool, "Risk pool")?;
                     let risk_percent_initial = if let Some(stoploss_initial) = stoploss_initial 
                     {
-                        Some(calculate_percentage_of(calculate_risk_initial(
+                        Some(calculate_risk_percentage_initial(
                             price_buy,
                             shares_buy,
                             tax_buy,
@@ -343,8 +343,9 @@ fn main() -> Result<(), slint::PlatformError>
                             tax_sell,
                             commission_sell,
                             stoploss_initial,
+                            trade_pool,
                             trade_type(side == "Long"),
-                        ), trade_pool))
+                        ))
                     }
                     else if risk.trim().is_empty()
                     {
