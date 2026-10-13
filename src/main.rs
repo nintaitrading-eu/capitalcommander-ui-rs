@@ -373,9 +373,6 @@ fn main() -> Result<(), slint::PlatformError>
                             .ok_or("Selected trade no longer exists")?
                     };
                     let is_long = side == "Long";
-                    // TODO: This is a chicken-or-the-egg problem. Find a solution for this. For
-                    // now, use risk_percent_initial, insteado f risk_percent_actual.unwrap(), for
-                    // the stoploss_actual calculation.
                     let stoploss_actual = if trade_id != 0
                     {
                         None
@@ -390,7 +387,7 @@ fn main() -> Result<(), slint::PlatformError>
                     }
                     else
                     {
-                        Some(calculate_risk_percentage(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss_actual.unwrap(), trade_pool, trade_type(is_long)))
+                        Some(calculate_risk_percentage(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss_initial.unwrap(), trade_pool, trade_type(is_long)))
                     };
                     let trade_pool = if trade_id == 0
                     {
