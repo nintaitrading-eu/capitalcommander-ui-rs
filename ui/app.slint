@@ -179,7 +179,7 @@ export component AppWindow inherits Window
     callback filter-journal(string, string) -> bool;
     callback filter-trade-costs(string, string) -> bool;
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
-    pure callback calculate-risk-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
+    pure callback calculate-risk-initial(string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-stoploss-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-risk-percentage-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-financing(string, string, string, string, string, string, string, string, string);
@@ -594,12 +594,12 @@ export component AppWindow inherits Window
                     Text
                     {
                         text: risk-mode.current-value == "Risk %"
-                              ? root.calculate-risk-initial(root.trade-pool,
+                              ? root.calculate-risk-initial(
                                     root.calculate-stoploss-initial(root.trade-pool, risk-percent.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
                                         tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text, trade-side.current-value),
                                     price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
                                     tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text, trade-side.current-value).to-float().to-fixed(2)
-                              : root.calculate-risk-initial(root.trade-pool, stoploss.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
+                              : root.calculate-risk-initial(stoploss.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
                                     tax-buy.text, tax-sell.text, commission-buy.text, commission-sell.text, trade-side.current-value).to-float().to-fixed(2);
                         color: root.aqua;
                     }

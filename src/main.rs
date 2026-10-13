@@ -115,8 +115,7 @@ fn main() -> Result<(), slint::PlatformError>
     /* Event: on_calculate_risk_initial*/
 
     window.on_calculate_risk_initial(
-        |pool,
-         stoploss,
+        |stoploss,
          price_buy,
          price_sell,
          shares_buy,
@@ -127,7 +126,6 @@ fn main() -> Result<(), slint::PlatformError>
          tax_sell,
          side| {
             let inputs: Option<Vec<f64>> = [
-                pool,
                 stoploss,
                 price_buy,
                 price_sell,
