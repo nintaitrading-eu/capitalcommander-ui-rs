@@ -5,7 +5,7 @@ mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_risk_initial, calculate_stoploss_initial, calculate_stoploss, calculate_risk_percentage_initial, calculate_risk_percentage, calculate_percentage_of, convert_from_orig};
+use libcalculatorfinance::{calculate_risk_initial, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -154,7 +154,8 @@ fn main() -> Result<(), slint::PlatformError>
                         trade_type(side == "Long"),
                     ))
                 })
-                .map(|value| format!("{value:.4}"))
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .map(|value| value.to_string())
                 .unwrap_or_else(|| "—".into())
                 .into()
         },
@@ -164,7 +165,7 @@ fn main() -> Result<(), slint::PlatformError>
     
     window.on_calculate_stoploss_initial(
         |pool,
-         percent,
+         risk_percent,
          price_buy,
          price_sell,
          shares_buy,
@@ -176,7 +177,7 @@ fn main() -> Result<(), slint::PlatformError>
          side| {
             let inputs: Option<Vec<f64>> = [
                 pool,
-                percent,
+                risk_percent,
                 price_buy,
                 price_sell,
                 shares_buy,
@@ -191,6 +192,10 @@ fn main() -> Result<(), slint::PlatformError>
             .collect();
             inputs
                 .and_then(|values| {
+                    if values[0] <= 0.0 || values[1] < 0.0
+                    {
+                        return None;
+                    }
                     Some(calculate_stoploss_initial(
                         values[2],
                         values[4] as i32,
@@ -205,7 +210,8 @@ fn main() -> Result<(), slint::PlatformError>
                         trade_type(side == "Long"),
                     ))
                 })
-                .map(|value| format!("{value:.4}"))
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .map(|value| value.to_string())
                 .unwrap_or_else(|| "—".into())
                 .into()
         },
@@ -242,6 +248,10 @@ fn main() -> Result<(), slint::PlatformError>
             .collect();
             inputs
                 .and_then(|values| {
+                    if values[9] <= 0.0
+                    {
+                        return None;
+                    }
                     Some(calculate_risk_percentage_initial(
                         values[0],
                         values[1] as i32,
@@ -256,7 +266,8 @@ fn main() -> Result<(), slint::PlatformError>
                         trade_type(side == "Long"),
                     ))
                 })
-                .map(|value| format!("{value:.4}"))
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .map(|value| value.to_string())
                 .unwrap_or_else(|| "—".into())
                 .into()
         },
@@ -324,28 +335,7 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         Some(validated_as_positive(&stoploss, "Stoploss")?)
                     };
-                    if !risk.trim().is_empty() && stoploss_initial.is_some()
-                    {
-                        return Err("Enter either risk % or stoploss".into());
-                    }
-                    let trade_pool = validated_as_positive(&trade_pool, "Risk pool")?;
-                    let risk_percent_initial = if let Some(stoploss_initial) = stoploss_initial 
-                    {
-                        Some(calculate_risk_percentage_initial(
-                            price_buy,
-                            shares_buy,
-                            tax_buy,
-                            commission_buy,
-                            price_sell,
-                            shares_sell,
-                            tax_sell,
-                            commission_sell,
-                            stoploss_initial,
-                            trade_pool,
-                            trade_type(side == "Long"),
-                        ))
-                    }
-                    else if risk.trim().is_empty()
+                    let risk_percent_entered = if risk.trim().is_empty()
                     {
                         None
                     }
@@ -353,40 +343,52 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         Some(validated_as_positive(&risk, "Risk %")?)
                     };
-                    if trade_id == 0 && risk_percent_initial.is_none()
+                    if risk_percent_entered.is_none() && stoploss_initial.is_none()
                     {
-                        return Err("Enter risk % or stoploss and a pool value".into());
+                        return Err("Enter risk % or stoploss".into());
                     }
-                    let risk_initial = if trade_id == 0
+                    let trade_pool = validated_as_positive(&trade_pool, "Risk pool")?;
+                    if trade_pool == 0.0
                     {
-                        0.0
+                        return Err("Risk pool must be greater than zero".into());
                     }
-                    else
-                    {
-                        model
-                            .borrow()
-                            .trades
-                            .iter()
-                            .find(|trade| trade.id == trade_id as i64)
-                            .map(|trade| trade.risk_initial)
-                            .ok_or("Selected trade no longer exists")?
-                    };
                     let is_long = side == "Long";
-                    let stoploss_actual = if trade_id == 0
+                    let stoploss_initial = stoploss_initial.or_else(|| risk_percent_entered.map(|risk_percent| {
+                        calculate_stoploss_initial(
+                            price_buy, shares_buy, tax_buy, commission_buy,
+                            price_sell, shares_sell, tax_sell, commission_sell,
+                            risk_percent, trade_pool, trade_type(is_long),
+                        )
+                    })).ok_or("Enter risk % or stoploss")?;
+                    if !stoploss_initial.is_finite() || stoploss_initial < 0.0
+                    {
+                        return Err("Risk % produces an invalid stoploss".into());
+                    }
+                    let risk_initial = calculate_risk_initial(
+                        price_buy, shares_buy, tax_buy, commission_buy,
+                        price_sell, shares_sell, tax_sell, commission_sell,
+                        stoploss_initial, trade_type(is_long),
+                    );
+                    if !risk_initial.is_finite() || risk_initial < 0.0
+                    {
+                        return Err("Stoploss produces an invalid initial risk".into());
+                    }
+                    let risk_percent_initial = calculate_risk_percentage_initial(
+                        price_buy, shares_buy, tax_buy, commission_buy,
+                        price_sell, shares_sell, tax_sell, commission_sell,
+                        stoploss_initial, trade_pool, trade_type(is_long),
+                    );
+                    if !risk_percent_initial.is_finite() || risk_percent_initial < 0.0
+                    {
+                        return Err("Stoploss produces an invalid risk percentage".into());
+                    }
+                    let risk_percent_actual = if date_sell.is_empty()
                     {
                         None
                     }
                     else
                     {
-                        Some(calculate_stoploss(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, risk_percent_initial.unwrap(), trade_pool, trade_type(is_long)))
-                    };
-                    let risk_percent_actual = if trade_id == 0
-                    {
-                        None
-                    }
-                    else
-                    {
-                        Some(calculate_risk_percentage(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss_initial.unwrap(), trade_pool, trade_type(is_long)))
+                        Some(calculate_risk_percentage(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss_initial, trade_pool, trade_type(is_long)))
                     };
                     let trade_pool = if trade_id == 0
                     {
@@ -420,11 +422,11 @@ fn main() -> Result<(), slint::PlatformError>
                         tax_sell,
                         cost_other,
                         risk_initial,
-                        risk_percent_initial,
+                        risk_percent_initial: Some(risk_percent_initial),
                         risk_percent_actual,
                         trade_pool,
-                        stoploss_initial,
-                        stoploss_actual,
+                        stoploss_initial: Some(stoploss_initial),
+                        stoploss_actual: None,
                     };
                     if trade_id == 0
                     {
@@ -834,7 +836,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
-            risk_initial: format!("{:.2}", trade.risk_initial).into(),
+            risk_initial: trade.risk_initial.to_string().into(),
             risk_actual: trade
                 .risk_actual
                 .map(|value| format!("{value:.2}"))

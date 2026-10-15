@@ -525,7 +525,7 @@ impl Store
         ).map_err(db_error)?;
         if let Some(profit_loss_total_converted) = profit_loss_total_converted
         {
-            record_pool_profit_loss_total(&transaction, profit_loss_total_converted)?;
+            record_pool_profit_loss_total_converted(&transaction, profit_loss_total_converted)?;
         }
         transaction.commit().map_err(db_error)?;
         Ok(())
@@ -765,7 +765,11 @@ fn record_pool_profit_loss_total(transaction: &Transaction<'_>, profit_loss_tota
         return Err("Closing this trade would make the pool balance invalid".into());
     }
     transaction
-        .execute("INSERT INTO t_pool(pool_value, pool_value) VALUES (?1)", [updated])
+        .execute(
+            "INSERT INTO t_pool(pool_value, pool_value_converted)
+             SELECT ?1, pool_value_converted FROM t_pool ORDER BY pool_id DESC LIMIT 1",
+            [updated],
+        )
         .map_err(db_error)?;
     Ok(())
 }
@@ -774,7 +778,7 @@ fn record_pool_profit_loss_total_converted(transaction: &Transaction<'_>, profit
 {
     let current: f64 = transaction
         .query_row(
-            "SELECT pool_value FROM t_pool ORDER BY pool_id DESC LIMIT 1",
+            "SELECT pool_value_converted FROM t_pool ORDER BY pool_id DESC LIMIT 1",
             [],
             |row| row.get(0),
         )
@@ -787,7 +791,11 @@ fn record_pool_profit_loss_total_converted(transaction: &Transaction<'_>, profit
         return Err("Closing this trade would make the pool balance invalid".into());
     }
     transaction
-        .execute("INSERT INTO t_pool(pool_value) VALUES (?1)", [updated, ])
+        .execute(
+            "INSERT INTO t_pool(pool_value, pool_value_converted)
+             SELECT pool_value, ?1 FROM t_pool ORDER BY pool_id DESC LIMIT 1",
+            [updated],
+        )
         .map_err(db_error)?;
     Ok(())
 }
