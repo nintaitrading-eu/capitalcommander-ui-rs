@@ -426,7 +426,6 @@ fn main() -> Result<(), slint::PlatformError>
                         risk_percent_actual,
                         trade_pool,
                         stoploss_initial: Some(stoploss_initial),
-                        stoploss_actual: None,
                     };
                     if trade_id == 0
                     {

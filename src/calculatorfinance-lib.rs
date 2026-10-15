@@ -115,7 +115,11 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
             trade_type(trade.is_long),
         )
     });
-    let stoploss_actual = profit_loss.map(|pl| {
+    if risk_actual.is_some() && (!pool_value.is_finite() || pool_value <= 0.0)
+    {
+        return Err("The pool value must be positive to calculate the actual stoploss".into());
+    }
+    let stoploss_actual = risk_actual.map(|risk| {
         calculate_stoploss(
             trade.price_buy,
             trade.shares_buy,
@@ -125,11 +129,15 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
             trade.shares_sell,
             trade.tax_sell,
             trade.commission_sell,
-            risk_actual.unwrap(),
-            pl,
+            risk / pool_value * 100.0,
+            pool_value,
             trade_type(trade.is_long),
         )
     });
+    if stoploss_actual.is_some_and(|value| !value.is_finite() || value < 0.0)
+    {
+        return Err("Actual stoploss must be finite and nonnegative. Check the closing quantity and tax.".into());
+    }
 
 
     let risk_initial_converted = convert_from_orig(risk_initial, trade.exchange_rate_buy);

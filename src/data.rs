@@ -102,7 +102,6 @@ pub struct NewTrade
     pub risk_percent_actual: Option<f64>,
     pub trade_pool: Option<f64>,
     pub stoploss_initial: Option<f64>,
-    pub stoploss_actual: Option<f64>,
 }
 
 pub struct NewFinancing
