@@ -615,7 +615,7 @@ impl Store
                         profit_loss_total_converted = ?12,
                         r_multiple = ?13,
              date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE trade_calculated_id = ?12",
+             WHERE trade_calculated_id = ?14",
                 params![
                     risk_initial,
                     risk_initial_converted,
