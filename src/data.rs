@@ -481,7 +481,7 @@ impl Store
             return Err("Pool balance must be finite and nonnegative".into());
         }
         transaction
-            .execute("INSERT INTO t_pool(pool_value, pool_value_converted) VALUES (?1)", [pool_value, convert_to_orig(pool_value, trade.exchange_rate_buy)])
+            .execute("INSERT INTO t_pool(pool_value, pool_value_converted) VALUES (?1, ?2)", [pool_value, convert_to_orig(pool_value, trade.exchange_rate_buy)])
             .map_err(db_error)?;
         let pool_id = transaction.last_insert_rowid();
         transaction
@@ -611,7 +611,7 @@ impl Store
                         stoploss_actual = ?8,
                         profit_loss = ?9,
                         profit_loss_converted = ?10,
-                        profit_loss_total = ?11
+                        profit_loss_total = ?11,
                         profit_loss_total_converted = ?12,
                         r_multiple = ?13,
              date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')

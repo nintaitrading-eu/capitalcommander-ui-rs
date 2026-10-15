@@ -372,7 +372,7 @@ fn main() -> Result<(), slint::PlatformError>
                             .ok_or("Selected trade no longer exists")?
                     };
                     let is_long = side == "Long";
-                    let stoploss_actual = if trade_id != 0
+                    let stoploss_actual = if trade_id == 0
                     {
                         None
                     }
@@ -380,7 +380,7 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         Some(calculate_stoploss(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, risk_percent_initial.unwrap(), trade_pool, trade_type(is_long)))
                     };
-                    let risk_percent_actual = if trade_id != 0
+                    let risk_percent_actual = if trade_id == 0
                     {
                         None
                     }
