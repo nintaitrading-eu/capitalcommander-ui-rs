@@ -562,12 +562,12 @@ export component AppWindow inherits Window
                     }
                     VerticalBox
                     {
-                        Text { text: "Exchange rate buy (to EUR)"; color: root.secondary; }
+                        Text { text: "Exchange rate buy (to " + root.base-currency + ")"; color: root.secondary; }
                         exchange-rate-buy := LineEdit { text: "1"; height: 24px; }
                     }
                     VerticalBox
                     {
-                        Text { text: "Exchange rate sell (to EUR)"; color: root.secondary; }
+                        Text { text: "Exchange rate sell (to " + root.base-currency + ")"; color: root.secondary; }
                         exchange-rate-sell := LineEdit { text: "1"; height: 24px; }
                     }
                 }
