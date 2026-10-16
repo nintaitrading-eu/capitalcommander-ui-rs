@@ -1,4 +1,4 @@
-import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Palette, DatePickerPopup } from "std-widgets.slint";
+import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, StandardTableView, Palette, DatePickerPopup } from "std-widgets.slint";
 
 component DateField inherits HorizontalBox
 {
@@ -155,14 +155,18 @@ export component AppWindow inherits Window
     in-out property <[string]> market-codes;
     in-out property <[MarketRow]> market-details;
     in-out property <[ParameterRow]> parameters;
+    in-out property <[[StandardListViewItem]]> parameter-table-rows;
     private property <int> editing-parameter-id: 0;
+    private property <int> selected-parameter-row: -1;
     private property <string> parameter-name: "";
     private property <string> parameter-value: "";
     private property <string> parameter-default: "";
     private property <string> parameter-description: "";
     private property <string> parameter-datatype: "string";
     in-out property <[TradeRow]> trades;
-    private property <int> editing-trade-id: 0;
+    in-out property <[[StandardListViewItem]]> trade-table-rows;
+    in-out property <int> editing-trade-id: 0;
+    in-out property <int> selected-trade-row: -1;
     private property <string> trade-pool: root.current-pool-exact;
     private property <string> risk-entry-mode: "";
     in-out property <[FinancingRow]> financing;
@@ -498,6 +502,7 @@ export component AppWindow inherits Window
                             clicked =>
                             {
                                 root.editing-trade-id = 0;
+                                root.selected-trade-row = -1;
                                 trade-side.current-value = "Long";
                                 date-buy.value = "";
                                 date-sell.value = "";
@@ -644,6 +649,7 @@ export component AppWindow inherits Window
                             risk-percent.text, stoploss.text, root.trade-pool)
                         {
                             root.editing-trade-id = 0;
+                            root.selected-trade-row = -1;
                             trade-side.current-value = "Long";
                             date-buy.value = "";
                             date-sell.value = "";
@@ -705,77 +711,54 @@ export component AppWindow inherits Window
                     }
                 }
                 Rectangle { height: 1px; background: root.divider; }
-                HorizontalBox
-                { 
-                    spacing: 3px;
-                    Text { text: "ID"; width: 45px; color: root.muted; }
-                    Text { text: "PRODUCT"; width: 155px; color: root.muted; }
-                    Text { text: "SIDE"; width: 65px; color: root.muted; }
-                    Text { text: "BUY → SELL"; width: 180px; color: root.muted; }
-                    Text { text: "QTY"; width: 75px; color: root.muted; }
-                    Text { text: "INITIAL RISK"; width: 100px; color: root.muted; }
-                    Text { text: "ACTUAL RISK"; width: 100px; color: root.muted; }
-                    Text { text: "P/L"; width: 95px; color: root.muted; }
-                    Text { text: "R"; color: root.muted; }
-                }
-
 /*******************************************************************************
  * Trade journal results
  *******************************************************************************/
-                ScrollView
+                journal-table := StandardTableView
                 {
                     vertical-stretch: 1;
-                    VerticalBox
+                    columns: [
+                        { title: "ID", width: 55px },
+                        { title: "PRODUCT", width: 155px },
+                        { title: "SIDE", width: 75px },
+                        { title: "BUY → SELL", width: 205px },
+                        { title: "QTY BUY", width: 90px },
+                        { title: "QTY SELL", width: 90px },
+                        { title: "INITIAL RISK", width: 115px },
+                        { title: "ACTUAL RISK", width: 115px },
+                        { title: "P/L", width: 105px },
+                        { title: "R", width: 85px },
+                    ];
+                    rows: root.trade-table-rows;
+                    current-row: root.selected-trade-row;
+                    current-row-changed(row) =>
                     {
-                        spacing: 3px;
-                        for trade in root.trades: Rectangle
+                        if row < 0 || row >= root.trades.length || root.trades[row].is-closed
                         {
-                            height: 40px;
-                            background: root.editing-trade-id == trade.id ? root.divider : root.surface;
-                            border-radius: 4px;
-                            TouchArea
-                            {
-                                enabled: !trade.is-closed;
-                                clicked =>
-                                {
-                                    root.editing-trade-id = trade.id;
-                                    trade-product.current-value = trade.product;
-                                    trade-side.current-value = trade.side;
-                                    date-buy.value = trade.date-buy;
-                                    date-sell.value = trade.date-sell;
-                                    shares-buy.text = trade.edit-shares-buy;
-                                    shares-sell.text = trade.edit-shares-sell;
-                                    price-buy.text = trade.price-buy;
-                                    price-sell.text = trade.price-sell;
-                                    exchange-rate-buy.text = trade.exchange-rate-buy;
-                                    exchange-rate-sell.text = trade.exchange-rate-sell;
-                                    commission-buy.text = trade.commission-buy;
-                                    tax-buy.text = trade.tax-buy;
-                                    commission-sell.text = trade.commission-sell;
-                                    tax-sell.text = trade.tax-sell;
-                                    cost-other.text = trade.cost-other;
-                                    risk-percent.text = trade.risk-percent-initial;
-                                    stoploss.text = trade.stoploss-initial;
-                                    root.risk-entry-mode = trade.stoploss-initial == "" ? "percent" : "stoploss";
-                                    root.trade-pool = trade.trade-pool == "" ? root.current-pool-exact : trade.trade-pool;
-                                }
-                            }
-                            HorizontalBox
-                            {
-                                padding: 9px;
-                                spacing: 3px;
-                                Text { text: trade.id; width: 45px; color: root.muted; }
-                                Text { text: trade.product; width: 155px; color: root.primary; font-weight: 600; }
-                                Text { text: trade.side; width: 65px; color: root.secondary; }
-                                Text { text: trade.dates; width: 180px; color: root.secondary; }
-                                Text { text: trade.shares-buy; width: 75px; color: root.secondary; }
-                                Text { text: trade.shares-sell; width: 75px; color: root.secondary; }
-                                Text { text: trade.risk-initial; width: 100px; color: root.secondary; }
-                                Text { text: trade.risk-actual; width: 100px; color: root.secondary; }
-                                Text { text: trade.profit; width: 95px; color: root.primary; }
-                                Text { text: trade.r; color: root.accent; }
-                            }
+                            journal-table.current-row = root.selected-trade-row;
+                            return;
                         }
+                        root.selected-trade-row = row;
+                        root.editing-trade-id = root.trades[row].id;
+                        trade-product.current-value = root.trades[row].product;
+                        trade-side.current-value = root.trades[row].side;
+                        date-buy.value = root.trades[row].date-buy;
+                        date-sell.value = root.trades[row].date-sell;
+                        shares-buy.text = root.trades[row].edit-shares-buy;
+                        shares-sell.text = root.trades[row].edit-shares-sell;
+                        price-buy.text = root.trades[row].price-buy;
+                        price-sell.text = root.trades[row].price-sell;
+                        exchange-rate-buy.text = root.trades[row].exchange-rate-buy;
+                        exchange-rate-sell.text = root.trades[row].exchange-rate-sell;
+                        commission-buy.text = root.trades[row].commission-buy;
+                        tax-buy.text = root.trades[row].tax-buy;
+                        commission-sell.text = root.trades[row].commission-sell;
+                        tax-sell.text = root.trades[row].tax-sell;
+                        cost-other.text = root.trades[row].cost-other;
+                        risk-percent.text = root.trades[row].risk-percent-initial;
+                        stoploss.text = root.trades[row].stoploss-initial;
+                        root.risk-entry-mode = root.trades[row].stoploss-initial == "" ? "percent" : "stoploss";
+                        root.trade-pool = root.trades[row].trade-pool == "" ? root.current-pool-exact : root.trades[row].trade-pool;
                     }
                 }
             }
@@ -1009,6 +992,7 @@ export component AppWindow inherits Window
                     if root.save-parameter(root.editing-parameter-id, root.parameter-name, root.parameter-value, root.parameter-default, root.parameter-description, root.parameter-datatype)
                     {
                         root.editing-parameter-id = 0;
+                        root.selected-parameter-row = -1;
                         root.parameter-name = "";
                         root.parameter-value = "";
                         root.parameter-default = "";
@@ -1020,50 +1004,32 @@ export component AppWindow inherits Window
             Text { text: "Parameters"; color: root.primary; font-size: 17px; font-weight: 600; }
             Rectangle { height: 1px; background: root.divider; }
             
-            HorizontalBox
-            {
-                spacing: 14px;
-                Text { text: "ID"; width: 55px; color: root.muted; }
-                Text { text: "NAME"; width: 180px; color: root.muted; }
-                Text { text: "VALUE"; width: 150px; color: root.muted; }
-                Text { text: "DEFAULT"; width: 150px; color: root.muted; }
-                Text { text: "TYPE"; width: 100px; color: root.muted; }
-                Text { text: "DESCRIPTION"; color: root.muted; }
-            }
-            ScrollView
+            parameter-table := StandardTableView
             {
                 vertical-stretch: 1;
-                VerticalBox
+                columns: [
+                    { title: "ID", width: 65px },
+                    { title: "NAME", width: 190px },
+                    { title: "VALUE", width: 160px },
+                    { title: "DEFAULT", width: 160px },
+                    { title: "TYPE", width: 110px },
+                    { title: "DESCRIPTION", width: 280px },
+                ];
+                rows: root.parameter-table-rows;
+                current-row: root.selected-parameter-row;
+                current-row-changed(row) =>
                 {
-                    spacing: 3px;
-                    for parameter in root.parameters: Rectangle
+                    if row < 0 || row >= root.parameters.length
                     {
-                        height: 40px;
-                        background: root.editing-parameter-id == 0 ? root.surface : root.divider;
-                        border-radius: 4px;
-                        HorizontalBox
-                        {
-                            padding: 9px; spacing: 14px;
-                            Text { text: parameter.id; width: 55px; color: root.muted; }
-                            Text { text: parameter.name; width: 180px; color: root.primary; font-weight: 600; }
-                            Text { text: parameter.value; width: 150px; color: root.accent; }
-                            Text { text: parameter.value-default; width: 150px; color: root.secondary; }
-                            Text { text: parameter.datatype; width: 100px; color: root.secondary; }
-                            Text { text: parameter.description; color: root.secondary; }
-                        }
-                        TouchArea
-                        {
-                            clicked =>
-                            {
-                                root.editing-parameter-id = parameter.id;
-                                root.parameter-name = parameter.name;
-                                root.parameter-value = parameter.value;
-                                root.parameter-default = parameter.value-default;
-                                root.parameter-description = parameter.description;
-                                root.parameter-datatype = parameter.datatype;
-                            }
-                        }
+                        return;
                     }
+                    root.selected-parameter-row = row;
+                    root.editing-parameter-id = root.parameters[row].id;
+                    root.parameter-name = root.parameters[row].name;
+                    root.parameter-value = root.parameters[row].value;
+                    root.parameter-default = root.parameters[row].value-default;
+                    root.parameter-description = root.parameters[row].description;
+                    root.parameter-datatype = root.parameters[row].datatype;
                 }
             }
         }

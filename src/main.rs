@@ -7,7 +7,7 @@ use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
 use libcalculatorfinance::{calculate_risk_initial, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{language::StandardListViewItem, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -699,7 +699,28 @@ fn set_parameters(window: &AppWindow, journal: &Journal)
         description: parameter.description.clone().into(),
         datatype: parameter.datatype.clone().into(),
     }).collect();
+    let table_rows = rows.iter().map(|parameter| table_row(vec![
+        parameter.id.to_string().into(),
+        parameter.name.clone(),
+        parameter.value.clone(),
+        parameter.value_default.clone(),
+        parameter.datatype.clone(),
+        parameter.description.clone(),
+    ])).collect();
+    window.set_parameter_table_rows(table_rows_model(table_rows));
     window.set_parameters(ModelRc::from(Rc::new(VecModel::from(rows))));
+}
+
+fn table_row(values: Vec<SharedString>) -> ModelRc<StandardListViewItem>
+{
+    ModelRc::from(Rc::new(VecModel::from(
+        values.into_iter().map(Into::into).collect::<Vec<_>>(),
+    )))
+}
+
+fn table_rows_model(rows: Vec<ModelRc<StandardListViewItem>>) -> ModelRc<ModelRc<StandardListViewItem>>
+{
+    ModelRc::from(Rc::new(VecModel::from(rows)))
 }
 
 fn strings(values: Vec<String>) -> ModelRc<SharedString>
@@ -853,7 +874,26 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .into(),
         })
         .collect();
+    let table_rows = rows.iter().map(|trade| table_row(vec![
+        trade.id.to_string().into(),
+        trade.product.clone(),
+        trade.side.clone(),
+        trade.dates.clone(),
+        trade.shares_buy.clone(),
+        trade.shares_sell.clone(),
+        trade.risk_initial.clone(),
+        trade.risk_actual.clone(),
+        trade.profit.clone(),
+        trade.r.clone(),
+    ])).collect();
+    let editing_trade_id = window.get_editing_trade_id();
+    let selected_row = rows.iter()
+        .position(|trade| trade.id == editing_trade_id && !trade.is_closed)
+        .map(|index| index as i32)
+        .unwrap_or(-1);
+    window.set_trade_table_rows(table_rows_model(table_rows));
     window.set_trades(ModelRc::from(Rc::new(VecModel::from(rows))));
+    window.set_selected_trade_row(selected_row);
     let finance: Vec<_> = journal.financing.iter().collect();
     let financing_total: f64 = finance.iter().map(|entry| entry.value).sum();
     window.set_financing_total(format!("{financing_total:.2}").into());
