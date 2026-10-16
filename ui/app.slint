@@ -375,7 +375,9 @@ export component AppWindow inherits Window
                         spacing: 3px;
                         for cost in root.trade-costs: Rectangle
                         {
-                            height: 40px; background: root.surface; border-radius: 4px;
+                            height: 40px;
+                            background: root.surface;
+                            border-radius: 4px;
                             HorizontalBox
                             {
                                 padding: 9px; spacing: 6px;
@@ -704,8 +706,8 @@ export component AppWindow inherits Window
                 }
                 Rectangle { height: 1px; background: root.divider; }
                 HorizontalBox
-                {
-                    spacing: 4px;
+                { 
+                    spacing: 3px;
                     Text { text: "ID"; width: 45px; color: root.muted; }
                     Text { text: "PRODUCT"; width: 155px; color: root.muted; }
                     Text { text: "SIDE"; width: 65px; color: root.muted; }
@@ -728,7 +730,9 @@ export component AppWindow inherits Window
                         spacing: 3px;
                         for trade in root.trades: Rectangle
                         {
-                            height: 40px; background: root.editing-trade-id == trade.id ? root.divider : root.surface; border-radius: 4px;
+                            height: 40px;
+                            background: root.editing-trade-id == trade.id ? root.divider : root.surface;
+                            border-radius: 4px;
                             TouchArea
                             {
                                 enabled: !trade.is-closed;
@@ -758,8 +762,9 @@ export component AppWindow inherits Window
                             }
                             HorizontalBox
                             {
-                                padding: 9px; spacing: 4px;
-                                Text { text: "#" + trade.id; width: 45px; color: root.muted; }
+                                padding: 9px;
+                                spacing: 3px;
+                                Text { text: trade.id; width: 45px; color: root.muted; }
                                 Text { text: trade.product; width: 155px; color: root.primary; font-weight: 600; }
                                 Text { text: trade.side; width: 65px; color: root.secondary; }
                                 Text { text: trade.dates; width: 180px; color: root.secondary; }
@@ -826,7 +831,7 @@ export component AppWindow inherits Window
                         HorizontalBox
                         {
                             padding: 9px; spacing: 14px;
-                            Text { text: "#" + row.id; width: 55px; color: root.muted; }
+                            Text { text: row.id; width: 55px; color: root.muted; }
                             Text { text: row.trade; width: 105px; color: root.primary; }
                             Text { text: row.date; width: 115px; color: root.secondary; }
                             Text { text: row.terms; width: 290px; color: root.secondary; }
@@ -1014,6 +1019,7 @@ export component AppWindow inherits Window
             }
             Text { text: "Parameters"; color: root.primary; font-size: 17px; font-weight: 600; }
             Rectangle { height: 1px; background: root.divider; }
+            
             HorizontalBox
             {
                 spacing: 14px;
@@ -1032,11 +1038,13 @@ export component AppWindow inherits Window
                     spacing: 3px;
                     for parameter in root.parameters: Rectangle
                     {
-                        height: 40px; background: root.surface; border-radius: 4px;
+                        height: 40px;
+                        background: root.editing-parameter-id == 0 ? root.surface : root.divider;
+                        border-radius: 4px;
                         HorizontalBox
                         {
                             padding: 9px; spacing: 14px;
-                            Text { text: "#" + parameter.id; width: 55px; color: root.muted; }
+                            Text { text: parameter.id; width: 55px; color: root.muted; }
                             Text { text: parameter.name; width: 180px; color: root.primary; font-weight: 600; }
                             Text { text: parameter.value; width: 150px; color: root.accent; }
                             Text { text: parameter.value-default; width: 150px; color: root.secondary; }
