@@ -1,25 +1,31 @@
 import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Palette, DatePickerPopup } from "std-widgets.slint";
 
-component DateField inherits HorizontalBox {
+component DateField inherits HorizontalBox
+{
     in-out property <string> value;
     spacing: 2px;
 
-    pure function two-digits(number: int) -> string {
+    pure function two-digits(number: int) -> string
+    {
         return number < 10 ? "0" + number : "" + number;
     }
 
-    Button {
+    Button
+    {
         width: 110px;
         text: root.value == "" ? "Select date" : root.value;
         clicked => { picker.show(); }
     }
-    Button {
+    Button
+    {
         text: "×";
         enabled: root.value != "";
         clicked => { root.value = ""; }
     }
-    picker := DatePickerPopup {
-        accepted(date) => {
+    picker := DatePickerPopup
+    {
+        accepted(date) =>
+        {
             root.value = date.year + "-" + root.two-digits(date.month) + "-" + root.two-digits(date.day);
             picker.date = date;
         }
@@ -157,6 +163,7 @@ export component AppWindow inherits Window
     in-out property <[TradeRow]> trades;
     private property <int> editing-trade-id: 0;
     private property <string> trade-pool: root.current-pool-exact;
+    private property <string> risk-entry-mode: "";
     in-out property <[FinancingRow]> financing;
     in-out property <string> trade-count: "0";
     in-out property <string> win-rate: "—";
@@ -225,11 +232,11 @@ export component AppWindow inherits Window
  *******************************************************************************/
     VerticalBox
     {
-        padding: 24px;
-        spacing: 14px;
+        padding: 18px;
+        spacing: 3px;
         HorizontalBox
         {
-            spacing: 16px;
+            spacing: 4px;
             Text { text: root.page; color: root.accent; font-size: 28px; font-weight: 700; }
             Rectangle { horizontal-stretch: 1; }
             if root.page != "Trade costs" && root.page != "Journal": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
@@ -266,56 +273,86 @@ export component AppWindow inherits Window
 
         if root.page == "Trade costs": VerticalBox
         {
-            spacing: 10px;
+            spacing: 3px;
             Text { text: "Costs in EUR for trades opened in the selected buy date range (inclusive)."; color: root.secondary; }
             HorizontalBox
             {
-                spacing: 10px;
-                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox { padding: 8px; spacing: 4px;
+                spacing: 3px;
+                Rectangle
+                {
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox
+                    {
+                        padding: 4px; spacing: 2px;
                         Text { text: "TRADES"; color: root.muted; font-size: 11px; }
                         Text { text: root.costs-count; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
-                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox { padding: 8px; spacing: 4px;
+                Rectangle
+                {
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox
+                    {
+                        padding: 4px; spacing: 2px;
                         Text { text: "BUY COMMISSION"; color: root.muted; font-size: 11px; }
                         Text { text: root.costs-commission-buy; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
-                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox { padding: 8px; spacing: 4px;
+                Rectangle
+                {
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox
+                    {
+                        padding: 4px; spacing: 2px;
                         Text { text: "BUY TAX"; color: root.muted; font-size: 11px; }
                         Text { text: root.costs-tax-buy; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
-                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox { padding: 8px; spacing: 4px;
+                Rectangle
+                {
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox
+                    {
+                        padding: 4px; spacing: 2px;
                         Text { text: "SELL COMMISSION"; color: root.muted; font-size: 11px; }
                         Text { text: root.costs-commission-sell; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
-                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox { padding: 8px; spacing: 4px;
+                Rectangle
+                {
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox
+                    {
+                        padding: 4px; spacing: 2px;
                         Text { text: "SELL TAX"; color: root.muted; font-size: 11px; }
                         Text { text: root.costs-tax-sell; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
-                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox { padding: 8px; spacing: 4px;
+                Rectangle
+                {
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox
+                    {
+                        padding: 4px; spacing: 2px;
                         Text { text: "OTHER"; color: root.muted; font-size: 11px; }
                         Text { text: root.costs-other; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
-                Rectangle { background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox { padding: 8px; spacing: 4px;
+                Rectangle
+                {
+                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                    VerticalBox
+                    {
+                        padding: 4px; spacing: 2px;
                         Text { text: "TOTAL COSTS"; color: root.muted; font-size: 11px; }
                         Text { text: root.costs-total; color: root.accent; font-size: 18px; font-weight: 700; }
                     }
                 }
             }
             Rectangle { height: 1px; background: root.divider; }
-            HorizontalBox { spacing: 6px;
+            HorizontalBox
+            {
+                spacing: 3px;
                 Text { text: "ID"; width: 38px; color: root.muted; }
                 Text { text: "PRODUCT"; width: 125px; color: root.muted; }
                 Text { text: "BUY DATE"; width: 95px; color: root.muted; }
@@ -327,10 +364,18 @@ export component AppWindow inherits Window
                 Text { text: "OTHER"; width: 72px; color: root.muted; }
                 Text { text: "TOTAL"; width: 82px; color: root.muted; }
             }
-            ScrollView { vertical-stretch: 1;
-                VerticalBox { spacing: 3px;
-                    for cost in root.trade-costs: Rectangle { height: 40px; background: root.surface; border-radius: 4px;
-                        HorizontalBox { padding: 9px; spacing: 6px;
+            ScrollView
+            {
+                vertical-stretch: 1;
+                VerticalBox
+                {
+                    spacing: 3px;
+                    for cost in root.trade-costs: Rectangle
+                    {
+                        height: 40px; background: root.surface; border-radius: 4px;
+                        HorizontalBox
+                        {
+                            padding: 9px; spacing: 6px;
                             Text { text: "#" + cost.id; width: 38px; color: root.muted; }
                             Text { text: cost.product; width: 125px; color: root.primary; font-weight: 600; }
                             Text { text: cost.date-buy; width: 95px; color: root.secondary; }
@@ -352,17 +397,16 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Journal" || root.page == "Expectancy": VerticalBox
         {
-            spacing: 8px;
+            spacing: 4px;
             HorizontalBox
             {
-                spacing: 10px;
                 Rectangle
                 {
                     background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 8px; spacing: 4px;
-                        Text { text: "is-closed TRADES"; color: root.muted; font-size: 11px; }
+                        padding: 8px; spacing: 2px;
+                        Text { text: "TRADES"; color: root.muted; font-size: 11px; }
                         Text { text: root.trade-count; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
                 }
@@ -371,7 +415,7 @@ export component AppWindow inherits Window
                     background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 8px; spacing: 4px;
+                        padding: 8px; spacing: 2px;
                         Text { text: "WIN RATE"; color: root.muted; font-size: 11px; }
                         Text { text: root.win-rate; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
@@ -381,7 +425,7 @@ export component AppWindow inherits Window
                     background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 8px; spacing: 4px;
+                        padding: 8px; spacing: 2px;
                         Text { text: "EXPECTANCY"; color: root.muted; font-size: 11px; }
                         Text { text: root.expectancy; color: root.accent; font-size: 18px; font-weight: 700; }
                     }
@@ -391,7 +435,7 @@ export component AppWindow inherits Window
                     background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
                     VerticalBox
                     {
-                        padding: 8px; spacing: 4px;
+                        padding: 8px; spacing: 2px;
                         Text { text: "TOTAL P/L"; color: root.muted; font-size: 11px; }
                         Text { text: root.total-pl; color: root.primary; font-size: 18px; font-weight: 700; }
                     }
@@ -403,7 +447,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
             if root.page == "Expectancy": VerticalBox
             {
-                spacing: 8px;
+                spacing: 4px;
                 Text { text: "Expectancy = average of (trade P/L ÷ initial risk)"; color: root.primary; font-size: 17px; }
                 Text { text: "Only is-closed trades with a positive initial risk are included. The Journal buy date range updates all figures above."; color: root.secondary; }
                 Text { text: "P/L is the gross price move; initial risk comes from the stoploss or risk percentage. Costs are stored separately."; color: root.secondary; }
@@ -413,11 +457,31 @@ export component AppWindow inherits Window
 /*******************************************************************************
  * Trade journal input
  *******************************************************************************/
-            if root.page == "Journal": VerticalBox
+            if root.page == "Journal": journal := VerticalBox
             {
+                function refresh-risk-inputs()
+                {
+                    if (root.risk-entry-mode == "percent")
+                    {
+                        stoploss.text = risk-percent.text == ""
+                            ? ""
+                            : root.calculate-stoploss-initial(
+                                root.trade-pool, risk-percent.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
+                                commission-buy.text, commission-sell.text, tax-buy.text, tax-sell.text, trade-side.current-value);
+                    }
+                    else if (root.risk-entry-mode == "stoploss")
+                    {
+                        risk-percent.text = stoploss.text == ""
+                            ? ""
+                            : root.calculate-risk-percentage-initial(
+                                price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text,
+                                price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text,
+                                stoploss.text, root.trade-pool, trade-side.current-value);
+                    }
+                }
                 HorizontalBox
                 {
-                    Text { text: root.editing-trade-id == 0 ? "Log trade" : "Edit trade #" + root.editing-trade-id; color: root.accent; font-size: 17px; font-weight: 600; }
+                    Text { text: root.editing-trade-id == 0 ? "Log trade" : "Edit trade #" + root.editing-trade-id; color: root.accent; font-size: 16px; font-weight: 600; }
                     Rectangle { horizontal-stretch: 1; }
                     if root.editing-trade-id != 0: Button
                     {
@@ -440,6 +504,7 @@ export component AppWindow inherits Window
                             cost-other.text = "0";
                             risk-percent.text = "";
                             stoploss.text = "";
+                            root.risk-entry-mode = "";
                             root.trade-pool = root.current-pool-exact;
                       }
                    }
@@ -469,12 +534,12 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Shares buy"; color: root.secondary; }
-                        shares-buy := LineEdit { text: "1"; }
+                        shares-buy := LineEdit { text: "1"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Shares sell"; color: root.secondary; }
-                        shares-sell := LineEdit { text: "0"; }
+                        shares-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                 }
                 HorizontalBox
@@ -482,12 +547,12 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Buy price"; color: root.secondary; }
-                        price-buy := LineEdit { text: "0"; }
+                        price-buy := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Sell price"; color: root.secondary; }
-                        price-sell := LineEdit { text: "0"; }
+                        price-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
@@ -505,22 +570,22 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Commission buy"; color: root.secondary; }
-                        commission-buy := LineEdit { text: "0"; }
+                        commission-buy := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Tax buy"; color: root.secondary; }
-                        tax-buy := LineEdit { text: "0"; }
+                        tax-buy := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Commission sell"; color: root.secondary; }
-                        commission-sell := LineEdit { text: "0"; }
+                        commission-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Tax sell"; color: root.secondary; }
-                        tax-sell := LineEdit { text: "0"; }
+                        tax-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
@@ -534,11 +599,8 @@ export component AppWindow inherits Window
                             placeholder-text: "Percent of pool";
                             edited(text) =>
                             {
-                                stoploss.text = text == ""
-                                    ? ""
-                                    : root.calculate-stoploss-initial(
-                                        root.trade-pool, text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
-                                        commission-buy.text, commission-sell.text, tax-buy.text, tax-sell.text, trade-side.current-value);
+                                root.risk-entry-mode = "percent";
+                                journal.refresh-risk-inputs();
                             }
                         }
                     }
@@ -550,12 +612,8 @@ export component AppWindow inherits Window
                             placeholder-text: "Price per unit";
                             edited(text) =>
                             {
-                                risk-percent.text = text == ""
-                                    ? ""
-                                    : root.calculate-risk-percentage-initial(
-                                        price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text,
-                                        price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text,
-                                        text, root.trade-pool, trade-side.current-value);
+                                root.risk-entry-mode = "stoploss";
+                                journal.refresh-risk-inputs();
                             }
                         }
                     }
@@ -586,6 +644,7 @@ export component AppWindow inherits Window
                             cost-other.text = "0";
                             risk-percent.text = "";
                             stoploss.text = "";
+                            root.risk-entry-mode = "";
                             root.trade-pool = root.current-pool-exact;
                         }
                     } 
@@ -632,7 +691,7 @@ export component AppWindow inherits Window
                 Rectangle { height: 1px; background: root.divider; }
                 HorizontalBox
                 {
-                    spacing: 8px;
+                    spacing: 4px;
                     Text { text: "ID"; width: 45px; color: root.muted; }
                     Text { text: "PRODUCT"; width: 155px; color: root.muted; }
                     Text { text: "SIDE"; width: 65px; color: root.muted; }
@@ -679,12 +738,13 @@ export component AppWindow inherits Window
                                     cost-other.text = trade.cost-other;
                                     risk-percent.text = trade.risk-percent-initial;
                                     stoploss.text = trade.stoploss-initial;
+                                    root.risk-entry-mode = trade.stoploss-initial == "" ? "percent" : "stoploss";
                                     root.trade-pool = trade.trade-pool == "" ? root.current-pool-exact : trade.trade-pool;
                                 }
                             }
                             HorizontalBox
                             {
-                                padding: 9px; spacing: 8px;
+                                padding: 9px; spacing: 4px;
                                 Text { text: "#" + trade.id; width: 45px; color: root.muted; }
                                 Text { text: trade.product; width: 155px; color: root.primary; font-weight: 600; }
                                 Text { text: trade.side; width: 65px; color: root.secondary; }
@@ -707,10 +767,12 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Financing": VerticalBox
         {
-            spacing: 10px;
+            spacing: 4px;
             Text { text: "Financing total: " + root.financing-total; color: root.accent; font-size: 18px; font-weight: 600; }
             Text { text: "Log financing"; color: root.primary; font-size: 17px; font-weight: 600; }
-            HorizontalBox { spacing: 8px;
+            HorizontalBox
+            {
+                spacing: 4px;
                 VerticalBox { Text { text: "Trade ID"; color: root.secondary; } fin-trade := LineEdit { placeholder-text: "Trade ID"; } }
                 VerticalBox { Text { text: "Date"; color: root.secondary; } fin-date := LineEdit { placeholder-text: "YYYY-MM-DD"; } }
                 VerticalBox { Text { text: "Quantity"; color: root.secondary; } fin-qty := LineEdit { text: "1"; } }
@@ -719,7 +781,7 @@ export component AppWindow inherits Window
             }
             HorizontalBox
             {
-                spacing: 8px;
+                spacing: 4px;
                 VerticalBox { Text { text: "exchange-rate rate"; color: root.secondary; } fin-exchange-rate := LineEdit { text: "1"; } }
                 VerticalBox { Text { text: "Days"; color: root.secondary; } fin-days := LineEdit { text: "1"; } }
                 VerticalBox { Text { text: "Value"; color: root.secondary; } fin-value := LineEdit { placeholder-text: "Auto"; } }
@@ -764,7 +826,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Products": VerticalBox
         {
-            spacing: 9px;
+            spacing: 4px;
             Text { text: "Add product"; color: root.accent; font-size: 17px; font-weight: 600; }
             HorizontalBox
             {
@@ -895,7 +957,7 @@ export component AppWindow inherits Window
             }
             HorizontalBox
             {
-                spacing: 8px;
+                spacing: 4px;
                 VerticalBox { Text { text: "Name"; color: root.secondary; } LineEdit { text <=> root.parameter-name; placeholder-text: "Parameter name"; } }
                 VerticalBox { Text { text: "Value"; color: root.secondary; } LineEdit { text <=> root.parameter-value; placeholder-text: "Value"; } }
                 VerticalBox { Text { text: "Default value"; color: root.secondary; } LineEdit { text <=> root.parameter-default; placeholder-text: "Default value"; } }
@@ -903,7 +965,7 @@ export component AppWindow inherits Window
             }
             HorizontalBox
             {
-                spacing: 8px;
+                spacing: 4px;
                 VerticalBox { Text { text: "Description"; color: root.secondary; } LineEdit { text <=> root.parameter-description; placeholder-text: "Description"; } }
             }
             Button
