@@ -272,126 +272,128 @@ export component AppWindow inherits Window
             }
         }
 
-        if root.page == "Trade costs": VerticalBox
-        {
-            spacing: 3px;
-            Text { text: "Costs in EUR for trades opened in the selected buy date range (inclusive)."; color: root.secondary; }
-            HorizontalBox
+        if root.page == "Trade costs":
+            VerticalBox
             {
-                spacing: 3px;
-                Rectangle
-                {
-                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox
-                    {
-                        padding: 4px; spacing: 2px;
-                        Text { text: "TRADES"; color: root.muted; font-size: 11px; }
-                        Text { text: root.costs-count; color: root.primary; font-size: 18px; font-weight: 700; }
-                    }
-                }
-                Rectangle
-                {
-                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox
-                    {
-                        padding: 4px; spacing: 2px;
-                        Text { text: "BUY COMMISSION"; color: root.muted; font-size: 11px; }
-                        Text { text: root.costs-commission-buy; color: root.primary; font-size: 18px; font-weight: 700; }
-                    }
-                }
-                Rectangle
-                {
-                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox
-                    {
-                        padding: 4px; spacing: 2px;
-                        Text { text: "BUY TAX"; color: root.muted; font-size: 11px; }
-                        Text { text: root.costs-tax-buy; color: root.primary; font-size: 18px; font-weight: 700; }
-                    }
-                }
-                Rectangle
-                {
-                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox
-                    {
-                        padding: 4px; spacing: 2px;
-                        Text { text: "SELL COMMISSION"; color: root.muted; font-size: 11px; }
-                        Text { text: root.costs-commission-sell; color: root.primary; font-size: 18px; font-weight: 700; }
-                    }
-                }
-                Rectangle
-                {
-                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox
-                    {
-                        padding: 4px; spacing: 2px;
-                        Text { text: "SELL TAX"; color: root.muted; font-size: 11px; }
-                        Text { text: root.costs-tax-sell; color: root.primary; font-size: 18px; font-weight: 700; }
-                    }
-                }
-                Rectangle
-                {
-                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox
-                    {
-                        padding: 4px; spacing: 2px;
-                        Text { text: "OTHER"; color: root.muted; font-size: 11px; }
-                        Text { text: root.costs-other; color: root.primary; font-size: 18px; font-weight: 700; }
-                    }
-                }
-                Rectangle
-                {
-                    background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
-                    VerticalBox
-                    {
-                        padding: 4px; spacing: 2px;
-                        Text { text: "TOTAL COSTS"; color: root.muted; font-size: 11px; }
-                        Text { text: root.costs-total; color: root.accent; font-size: 18px; font-weight: 700; }
-                    }
-                }
-            }
-            Rectangle { height: 1px; background: root.divider; }
-            HorizontalBox
-            {
-                spacing: 3px;
-                Text { text: "ID"; width: 38px; color: root.muted; }
-                Text { text: "PRODUCT"; width: 125px; color: root.muted; }
-                Text { text: "BUY DATE"; width: 95px; color: root.muted; }
-                Text { text: "SELL DATE"; width: 95px; color: root.muted; }
-                Text { text: "BUY COMM."; width: 72px; color: root.muted; }
-                Text { text: "BUY TAX"; width: 72px; color: root.muted; }
-                Text { text: "SELL COMM."; width: 72px; color: root.muted; }
-                Text { text: "SELL TAX"; width: 72px; color: root.muted; }
-                Text { text: "OTHER"; width: 72px; color: root.muted; }
-                Text { text: "TOTAL"; width: 82px; color: root.muted; }
-            }
-            ScrollView
-            {
-                vertical-stretch: 1;
-                VerticalBox
+                spacing: 8px;
+                Text { text: "Costs in EUR for trades opened in the selected buy date range (inclusive)."; color: root.secondary; }
+                HorizontalBox
                 {
                     spacing: 3px;
-                    for cost in root.trade-costs: Rectangle
+                    Rectangle
                     {
-                        height: 40px; background: root.surface; border-radius: 4px;
-                        HorizontalBox
+                        background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                        VerticalBox
                         {
-                            padding: 9px; spacing: 6px;
-                            Text { text: "#" + cost.id; width: 38px; color: root.muted; }
-                            Text { text: cost.product; width: 125px; color: root.primary; font-weight: 600; }
-                            Text { text: cost.date-buy; width: 95px; color: root.secondary; }
-                            Text { text: cost.date-sell == "" ? "open" : cost.date-sell; width: 95px; color: root.secondary; }
-                            Text { text: cost.commission-buy; width: 72px; color: root.secondary; }
-                            Text { text: cost.tax-buy; width: 72px; color: root.secondary; }
-                            Text { text: cost.commission-sell; width: 72px; color: root.secondary; }
-                            Text { text: cost.tax-sell; width: 72px; color: root.secondary; }
-                            Text { text: cost.other; width: 72px; color: root.secondary; }
-                            Text { text: cost.total; width: 82px; color: root.accent; }
+                            padding: 4px; spacing: 2px;
+                            Text { text: "TRADES"; color: root.muted; font-size: 11px; }
+                            Text { text: root.costs-count; color: root.primary; font-size: 18px; font-weight: 700; }
+                        }
+                    }
+                    Rectangle
+                    {
+                        background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                        VerticalBox
+                        {
+                            padding: 4px; spacing: 2px;
+                            Text { text: "BUY COMMISSION"; color: root.muted; font-size: 11px; }
+                            Text { text: root.costs-commission-buy; color: root.primary; font-size: 18px; font-weight: 700; }
+                        }
+                    }
+                    Rectangle
+                    {
+                        background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                        VerticalBox
+                        {
+                            padding: 4px; spacing: 2px;
+                            Text { text: "BUY TAX"; color: root.muted; font-size: 11px; }
+                            Text { text: root.costs-tax-buy; color: root.primary; font-size: 18px; font-weight: 700; }
+                        }
+                    }
+                    Rectangle
+                    {
+                        background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                        VerticalBox
+                        {
+                            padding: 4px; spacing: 2px;
+                            Text { text: "SELL COMMISSION"; color: root.muted; font-size: 11px; }
+                            Text { text: root.costs-commission-sell; color: root.primary; font-size: 18px; font-weight: 700; }
+                        }
+                    }
+                    Rectangle
+                    {
+                        background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                        VerticalBox
+                        {
+                            padding: 4px; spacing: 2px;
+                            Text { text: "SELL TAX"; color: root.muted; font-size: 11px; }
+                            Text { text: root.costs-tax-sell; color: root.primary; font-size: 18px; font-weight: 700; }
+                        }
+                    }
+                    Rectangle
+                    {
+                        background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                        VerticalBox
+                        {
+                            padding: 4px; spacing: 2px;
+                            Text { text: "OTHER"; color: root.muted; font-size: 11px; }
+                            Text { text: root.costs-other; color: root.primary; font-size: 18px; font-weight: 700; }
+                        }
+                    }
+                    Rectangle
+                    {
+                        background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
+                        VerticalBox
+                        {
+                            padding: 4px; spacing: 2px;
+                            Text { text: "TOTAL COSTS"; color: root.muted; font-size: 11px; }
+                            Text { text: root.costs-total; color: root.accent; font-size: 18px; font-weight: 700; }
+                        }
+                    }
+                }
+                Text { text: "Trading costs"; color: root.primary; font-size: 17px; font-weight: 600; }
+                Rectangle { height: 1px; background: root.divider; }
+                HorizontalBox
+                {
+                    spacing: 3px;
+                    Text { text: "ID"; width: 38px; color: root.muted; }
+                    Text { text: "PRODUCT"; width: 125px; color: root.muted; }
+                    Text { text: "BUY DATE"; width: 95px; color: root.muted; }
+                    Text { text: "SELL DATE"; width: 95px; color: root.muted; }
+                    Text { text: "BUY COMM."; width: 72px; color: root.muted; }
+                    Text { text: "BUY TAX"; width: 72px; color: root.muted; }
+                    Text { text: "SELL COMM."; width: 72px; color: root.muted; }
+                    Text { text: "SELL TAX"; width: 72px; color: root.muted; }
+                    Text { text: "OTHER"; width: 72px; color: root.muted; }
+                    Text { text: "TOTAL"; width: 82px; color: root.muted; }
+                }
+                ScrollView
+                {
+                    vertical-stretch: 1;
+                    VerticalBox
+                    {
+                        spacing: 3px;
+                        for cost in root.trade-costs: Rectangle
+                        {
+                            height: 40px; background: root.surface; border-radius: 4px;
+                            HorizontalBox
+                            {
+                                padding: 9px; spacing: 6px;
+                                Text { text: "#" + cost.id; width: 38px; color: root.muted; }
+                                Text { text: cost.product; width: 125px; color: root.primary; font-weight: 600; }
+                                Text { text: cost.date-buy; width: 95px; color: root.secondary; }
+                                Text { text: cost.date-sell == "" ? "open" : cost.date-sell; width: 95px; color: root.secondary; }
+                                Text { text: cost.commission-buy; width: 72px; color: root.secondary; }
+                                Text { text: cost.tax-buy; width: 72px; color: root.secondary; }
+                                Text { text: cost.commission-sell; width: 72px; color: root.secondary; }
+                                Text { text: cost.tax-sell; width: 72px; color: root.secondary; }
+                                Text { text: cost.other; width: 72px; color: root.secondary; }
+                                Text { text: cost.total; width: 82px; color: root.accent; }
+                            }
                         }
                     }
                 }
             }
-        }
 
 /*******************************************************************************
  * Info boxes expectancy.
@@ -663,7 +665,7 @@ export component AppWindow inherits Window
                 }
 
 /*******************************************************************************
- * Trade journal info
+ * Trade journal info and results
  *******************************************************************************/
                 HorizontalBox
                 {
@@ -801,7 +803,10 @@ export component AppWindow inherits Window
                 Rectangle { horizontal-stretch: 1; }
                 Button
                 {
-                    text: "Log financing"; clicked =>
+                    text: "Log financing";
+                    height: 24px;
+                    primary: true;
+                    clicked =>
                     {
                         root.save-financing(fin-trade.text, fin-date.text, fin-qty.text, fin-price.text, fin-rate.text, fin-exchange-rate.text, fin-days.text, fin-value.text, fin-comment.text);
                     }
@@ -838,7 +843,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Products": VerticalBox
         {
-            spacing: 4px;
+            spacing: 8px;
             Text { text: "Add product"; color: root.accent; font-size: 17px; font-weight: 600; }
             HorizontalBox
             {
@@ -871,12 +876,16 @@ export component AppWindow inherits Window
             }
             Button
             {
-                text: "Add product"; clicked =>
+                text: "Add product";
+                height: 24px;
+                primary: true;
+                clicked =>
                 {
                     root.save-product(product-name.text, product-description.text, product-currency.current-value, product-market.current-value);
                 }
             }
             Text { text: "Product catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
+            Rectangle { height: 1px; background: root.divider; }
             ScrollView
             {
                 vertical-stretch: 1;
@@ -904,7 +913,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Markets": VerticalBox
         {
-            spacing: 9px;
+            spacing: 8px;
             Text { text: "Add market"; color: root.accent; font-size: 17px; font-weight: 600; }
             HorizontalBox
             {
@@ -927,12 +936,16 @@ export component AppWindow inherits Window
             }
             Button
             {
-                text: "Add market"; clicked =>
+                text: "Add market";
+                height: 24px;
+                primary: true;
+                clicked =>
                 {
                     root.save-market(market-code.text, market-name.text, market-country.text);
                 }
             }
             Text { text: "Market catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
+            Rectangle { height: 1px; background: root.divider; }
             ScrollView
             {
                 vertical-stretch: 1;
@@ -963,7 +976,7 @@ export component AppWindow inherits Window
             Text
             {
                 text: root.editing-parameter-id == 0 ? "Add parameter" : "Edit parameter #" + root.editing-parameter-id;
-                color: root.primary;
+                color: root.accent;
                 font-size: 17px;
                 font-weight: 600;
             }
@@ -984,6 +997,8 @@ export component AppWindow inherits Window
             {
                 enabled: root.editing-parameter-id != 0;
                 text: "Save changes";
+                height: 24px;
+                primary: true;
                 clicked =>
                 {
                     if root.save-parameter(root.editing-parameter-id, root.parameter-name, root.parameter-value, root.parameter-default, root.parameter-description, root.parameter-datatype)
@@ -998,7 +1013,6 @@ export component AppWindow inherits Window
                 }
             }
             Text { text: "Parameters"; color: root.primary; font-size: 17px; font-weight: 600; }
-            Text { text: "Select a parameter below to edit it."; color: root.secondary; }
             Rectangle { height: 1px; background: root.divider; }
             HorizontalBox
             {
