@@ -3,7 +3,6 @@ import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, Pal
 component DateField inherits HorizontalBox
 {
     in-out property <string> value;
-    spacing: 2px;
 
     pure function two-digits(number: int) -> string
     {
@@ -13,12 +12,14 @@ component DateField inherits HorizontalBox
     Button
     {
         width: 110px;
+        height: 24px;
         text: root.value == "" ? "Select date" : root.value;
         clicked => { picker.show(); }
     }
     Button
     {
         text: "×";
+        height: 24px;
         enabled: root.value != "";
         clicked => { root.value = ""; }
     }
@@ -459,6 +460,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
             if root.page == "Journal": journal := VerticalBox
             {
+                spacing: 1px;
                 function refresh-risk-inputs()
                 {
                     if (root.risk-entry-mode == "percent")
@@ -483,86 +485,90 @@ export component AppWindow inherits Window
                 {
                     Text { text: root.editing-trade-id == 0 ? "Log trade" : "Edit trade #" + root.editing-trade-id; color: root.accent; font-size: 16px; font-weight: 600; }
                     Rectangle { horizontal-stretch: 1; }
-                    if root.editing-trade-id != 0: Button
-                    {
-                        text: "New trade"; clicked =>
+                    if root.editing-trade-id != 0:
+                        Button
                         {
-                            root.editing-trade-id = 0;
-                            trade-side.current-value = "Long";
-                            date-buy.value = "";
-                            date-sell.value = "";
-                            shares-buy.text = "1";
-                            shares-sell.text = "0";
-                            price-buy.text = "0";
-                            price-sell.text = "0";
-                            exchange-rate-buy.text = "1";
-                            exchange-rate-sell.text = "1";
-                            commission-buy.text = "0";
-                            tax-buy.text = "0";
-                            commission-sell.text = "0";
-                            tax-sell.text = "0";
-                            cost-other.text = "0";
-                            risk-percent.text = "";
-                            stoploss.text = "";
-                            root.risk-entry-mode = "";
-                            root.trade-pool = root.current-pool-exact;
-                      }
-                   }
+                            text: "New trade";
+                            height: 24px;
+                            primary: true;
+                            clicked =>
+                            {
+                                root.editing-trade-id = 0;
+                                trade-side.current-value = "Long";
+                                date-buy.value = "";
+                                date-sell.value = "";
+                                shares-buy.text = "1";
+                                shares-sell.text = "0";
+                                price-buy.text = "0";
+                                price-sell.text = "0";
+                                exchange-rate-buy.text = "1";
+                                exchange-rate-sell.text = "1";
+                                commission-buy.text = "0";
+                                tax-buy.text = "0";
+                                commission-sell.text = "0";
+                                tax-sell.text = "0";
+                                cost-other.text = "0";
+                                risk-percent.text = "";
+                                stoploss.text = "";
+                                root.risk-entry-mode = "";
+                                root.trade-pool = root.current-pool-exact;
+                          }
+                       }
                 }
                 HorizontalBox
                 {
                     VerticalBox
                     {
-                        Text { text: "Product name"; color: root.secondary; }
-                        trade-product := ComboBox { width: 180px; model: root.products; }
+                        Text { text: "Product"; color: root.secondary;}
+                        trade-product := ComboBox { width: 180px; model: root.products; height: 24px; }
                     }
                     VerticalBox
                     {
                         Text { text: "Side"; color: root.secondary; }
-                        trade-side := ComboBox { width: 90px; model: ["Long", "Short"]; current-value: "Long"; }
+                        trade-side := ComboBox { width: 90px; model: ["Long", "Short"]; current-value: "Long"; height: 24px; }
                     }
                     VerticalBox
                     {
-                        Text { text: "Buy date"; color: root.secondary; }
-                        date-buy := DateField { }
+                        Text { text: "Date buy"; color: root.secondary; }
+                        date-buy := DateField { padding: 0px; }
                     }
                     VerticalBox
                     {
-                        Text { text: "Sell date"; color: root.secondary; }
-                        date-sell := DateField { }
+                        Text { text: "Date sell"; color: root.secondary; }
+                        date-sell := DateField { padding: 0px; }
                     }
                     VerticalBox
                     {
                         Text { text: "Shares buy"; color: root.secondary; }
-                        shares-buy := LineEdit { text: "1"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
+                        shares-buy := LineEdit { text: "1"; height: 24px; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Shares sell"; color: root.secondary; }
-                        shares-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
+                        shares-sell := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                 }
                 HorizontalBox
                 {
                     VerticalBox
                     {
-                        Text { text: "Buy price"; color: root.secondary; }
-                        price-buy := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
+                        Text { text: "Price buy"; color: root.secondary; }
+                        price-buy := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Sell price"; color: root.secondary; }
-                        price-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
+                        price-sell := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
-                        Text { text: "Buy exchange rate (to EUR)"; color: root.secondary; }
-                        exchange-rate-buy := LineEdit { text: "1"; }
+                        Text { text: "Exchange rate buy (to EUR)"; color: root.secondary; }
+                        exchange-rate-buy := LineEdit { text: "1"; height: 24px; }
                     }
                     VerticalBox
                     {
-                        Text { text: "Sell exchange rate (to EUR)"; color: root.secondary; }
-                        exchange-rate-sell := LineEdit { text: "1"; }
+                        Text { text: "Exchange rate sell (to EUR)"; color: root.secondary; }
+                        exchange-rate-sell := LineEdit { text: "1"; height: 24px; }
                     }
                 }
                 HorizontalBox
@@ -570,33 +576,35 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Commission buy"; color: root.secondary; }
-                        commission-buy := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
+                        commission-buy := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Tax buy"; color: root.secondary; }
-                        tax-buy := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
+                        tax-buy := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Long") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Commission sell"; color: root.secondary; }
-                        commission-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
+                        commission-sell := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Tax sell"; color: root.secondary; }
-                        tax-sell := LineEdit { text: "0"; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
+                        tax-sell := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Other costs"; color: root.secondary; }
-                        cost-other := LineEdit { text: "0"; }
+                        cost-other := LineEdit { text: "0"; height: 24px; }
                     }
                     VerticalBox
                     {
                         Text { text: "Risk %"; color: root.secondary; }
-                        risk-percent := LineEdit {
+                        risk-percent := LineEdit
+                        {
                             placeholder-text: "Percent of pool";
+                             height: 24px;
                             edited(text) =>
                             {
                                 root.risk-entry-mode = "percent";
@@ -610,6 +618,7 @@ export component AppWindow inherits Window
                         stoploss := LineEdit
                         {
                             placeholder-text: "Price per unit";
+                            height: 24px;
                             edited(text) =>
                             {
                                 root.risk-entry-mode = "stoploss";
@@ -620,7 +629,10 @@ export component AppWindow inherits Window
                 }
                 Button
                 {
-                    text: root.editing-trade-id == 0 ? "Log trade" : "Save changes"; clicked =>
+                    text: root.editing-trade-id == 0 ? "Log trade" : "Save changes";
+                    height: 24px;
+                    primary: true;
+                    clicked =>
                     {
                         if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
                             date-buy.value, date-sell.value, shares-buy.text, shares-sell.text, price-buy.text,
