@@ -1,4 +1,4 @@
-import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, ScrollView, StandardTableView, Palette, DatePickerPopup } from "std-widgets.slint";
+import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, StandardTableView, Palette, DatePickerPopup } from "std-widgets.slint";
 
 component DateField inherits HorizontalBox
 {
@@ -152,8 +152,10 @@ export component AppWindow inherits Window
     private property <string> journal-draft-to: "";
     in-out property <[string]> products;
     in-out property <[ProductRow]> product-details;
+    in-out property <[[StandardListViewItem]]> product-table-rows;
     in-out property <[string]> market-codes;
     in-out property <[MarketRow]> market-details;
+    in-out property <[[StandardListViewItem]]> market-table-rows;
     in-out property <[ParameterRow]> parameters;
     in-out property <[[StandardListViewItem]]> parameter-table-rows;
     private property <int> editing-parameter-id: 0;
@@ -170,6 +172,7 @@ export component AppWindow inherits Window
     private property <string> trade-pool: root.current-pool-exact;
     private property <string> risk-entry-mode: "";
     in-out property <[FinancingRow]> financing;
+    in-out property <[[StandardListViewItem]]> financing-table-rows;
     in-out property <string> trade-count: "0";
     in-out property <string> win-rate: "—";
     in-out property <string> expectancy: "—";
@@ -180,6 +183,7 @@ export component AppWindow inherits Window
     private property <string> costs-draft-from: "";
     private property <string> costs-draft-to: "";
     in-out property <[TradeCostRow]> trade-costs;
+    in-out property <[[StandardListViewItem]]> trade-cost-table-rows;
     in-out property <string> costs-count: "0";
     in-out property <string> costs-commission-buy: "0.00";
     in-out property <string> costs-tax-buy: "0.00";
@@ -357,47 +361,22 @@ export component AppWindow inherits Window
                 }
                 Text { text: "Trading costs"; color: root.primary; font-size: 17px; font-weight: 600; }
                 Rectangle { height: 1px; background: root.divider; }
-                HorizontalBox
-                {
-                    spacing: 3px;
-                    Text { text: "ID"; width: 38px; color: root.muted; }
-                    Text { text: "PRODUCT"; width: 125px; color: root.muted; }
-                    Text { text: "BUY DATE"; width: 95px; color: root.muted; }
-                    Text { text: "SELL DATE"; width: 95px; color: root.muted; }
-                    Text { text: "BUY COMM."; width: 72px; color: root.muted; }
-                    Text { text: "BUY TAX"; width: 72px; color: root.muted; }
-                    Text { text: "SELL COMM."; width: 72px; color: root.muted; }
-                    Text { text: "SELL TAX"; width: 72px; color: root.muted; }
-                    Text { text: "OTHER"; width: 72px; color: root.muted; }
-                    Text { text: "TOTAL"; width: 82px; color: root.muted; }
-                }
-                ScrollView
+                StandardTableView
                 {
                     vertical-stretch: 1;
-                    VerticalBox
-                    {
-                        spacing: 3px;
-                        for cost in root.trade-costs: Rectangle
-                        {
-                            height: 40px;
-                            background: root.surface;
-                            border-radius: 4px;
-                            HorizontalBox
-                            {
-                                padding: 9px; spacing: 6px;
-                                Text { text: "#" + cost.id; width: 38px; color: root.muted; }
-                                Text { text: cost.product; width: 125px; color: root.primary; font-weight: 600; }
-                                Text { text: cost.date-buy; width: 95px; color: root.secondary; }
-                                Text { text: cost.date-sell == "" ? "open" : cost.date-sell; width: 95px; color: root.secondary; }
-                                Text { text: cost.commission-buy; width: 72px; color: root.secondary; }
-                                Text { text: cost.tax-buy; width: 72px; color: root.secondary; }
-                                Text { text: cost.commission-sell; width: 72px; color: root.secondary; }
-                                Text { text: cost.tax-sell; width: 72px; color: root.secondary; }
-                                Text { text: cost.other; width: 72px; color: root.secondary; }
-                                Text { text: cost.total; width: 82px; color: root.accent; }
-                            }
-                        }
-                    }
+                    columns: [
+                        { title: "ID", width: 55px },
+                        { title: "PRODUCT", width: 145px },
+                        { title: "BUY DATE", width: 110px },
+                        { title: "SELL DATE", width: 110px },
+                        { title: "BUY COMM.", width: 100px },
+                        { title: "BUY TAX", width: 90px },
+                        { title: "SELL COMM.", width: 100px },
+                        { title: "SELL TAX", width: 90px },
+                        { title: "OTHER", width: 90px },
+                        { title: "TOTAL", width: 100px },
+                    ];
+                    rows: root.trade-cost-table-rows;
                 }
             }
 
@@ -802,27 +781,18 @@ export component AppWindow inherits Window
             }
             Text { text: "Financing entries"; color: root.primary; font-size: 17px; font-weight: 600; }
             Rectangle { height: 1px; background: root.divider; }
-            ScrollView
+            StandardTableView
             {
                 vertical-stretch: 1;
-                VerticalBox
-                {
-                    spacing: 3px;
-                    for row in root.financing: Rectangle
-                    {
-                        height: 40px; background: root.surface; border-radius: 4px;
-                        HorizontalBox
-                        {
-                            padding: 9px; spacing: 14px;
-                            Text { text: row.id; width: 55px; color: root.muted; }
-                            Text { text: row.trade; width: 105px; color: root.primary; }
-                            Text { text: row.date; width: 115px; color: root.secondary; }
-                            Text { text: row.terms; width: 290px; color: root.secondary; }
-                            Text { text: row.value; width: 90px; color: root.accent; }
-                            Text { text: row.comment; color: root.secondary; }
-                        }
-                    }
-                }
+                columns: [
+                    { title: "ID", width: 65px },
+                    { title: "TRADE", width: 110px },
+                    { title: "DATE", width: 120px },
+                    { title: "TERMS", width: 310px },
+                    { title: "VALUE", width: 105px },
+                    { title: "COMMENT", width: 310px },
+                ];
+                rows: root.financing-table-rows;
             }
         }
 
@@ -874,25 +844,16 @@ export component AppWindow inherits Window
             }
             Text { text: "Product catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
             Rectangle { height: 1px; background: root.divider; }
-            ScrollView
+            StandardTableView
             {
                 vertical-stretch: 1;
-                VerticalBox
-                {
-                    spacing: 3px;
-                    for product in root.product-details: Rectangle
-                    {
-                        height: 38px; background: root.surface; border-radius: 4px;
-                        HorizontalBox
-                        {
-                            padding: 9px; spacing: 14px;
-                            Text { text: product.name; width: 170px; color: root.primary; font-weight: 600; }
-                            Text { text: product.currency; width: 50px; color: root.accent; }
-                            Text { text: product.market; width: 170px; color: root.secondary; }
-                            Text { text: product.description; color: root.secondary; }
-                        }
-                    }
-                }
+                columns: [
+                    { title: "NAME", width: 190px },
+                    { title: "CURRENCY", width: 105px },
+                    { title: "MARKET", width: 200px },
+                    { title: "DESCRIPTION", width: 520px },
+                ];
+                rows: root.product-table-rows;
             }
         }
 
@@ -934,24 +895,15 @@ export component AppWindow inherits Window
             }
             Text { text: "Market catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
             Rectangle { height: 1px; background: root.divider; }
-            ScrollView
+            StandardTableView
             {
                 vertical-stretch: 1;
-                VerticalBox
-                {
-                    spacing: 3px;
-                    for market in root.market-details: Rectangle
-                    {
-                        height: 38px; background: root.surface; border-radius: 4px;
-                        HorizontalBox
-                        {
-                            padding: 9px; spacing: 14px;
-                            Text { text: market.code; width: 170px; color: root.primary; font-weight: 600; }
-                            Text { text: market.name; width: 240px; color: root.secondary; }
-                            Text { text: market.country; color: root.accent; }
-                        }
-                    }
-                }
+                columns: [
+                    { title: "CODE", width: 200px },
+                    { title: "NAME", width: 390px },
+                    { title: "COUNTRY", width: 250px },
+                ];
+                rows: root.market-table-rows;
             }
         }
 

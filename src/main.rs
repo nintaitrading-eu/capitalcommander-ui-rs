@@ -658,6 +658,13 @@ fn set_products(window: &AppWindow, journal: &Journal)
             market: product.market.clone().into(),
         })
         .collect();
+    let table_rows = details.iter().map(|product| table_row(vec![
+        product.name.clone(),
+        product.currency.clone(),
+        product.market.clone(),
+        product.description.clone(),
+    ])).collect();
+    window.set_product_table_rows(table_rows_model(table_rows));
     window.set_product_details(ModelRc::from(Rc::new(VecModel::from(details))));
 }
 
@@ -679,6 +686,12 @@ fn set_markets(window: &AppWindow, journal: &Journal)
             country: market.country.clone().into(),
         })
         .collect();
+    let table_rows = details.iter().map(|market| table_row(vec![
+        market.code.clone(),
+        market.name.clone(),
+        market.country.clone(),
+    ])).collect();
+    window.set_market_table_rows(table_rows_model(table_rows));
     window.set_market_details(ModelRc::from(Rc::new(VecModel::from(details))));
 }
 
@@ -916,6 +929,15 @@ fn refresh(window: &AppWindow, journal: &Journal)
             comment: entry.comment.clone().into(),
         })
         .collect();
+    let table_rows = finance_rows.iter().map(|entry| table_row(vec![
+        entry.id.to_string().into(),
+        entry.trade.clone(),
+        entry.date.clone(),
+        entry.terms.clone(),
+        entry.value.clone(),
+        entry.comment.clone(),
+    ])).collect();
+    window.set_financing_table_rows(table_rows_model(table_rows));
     window.set_financing(ModelRc::from(Rc::new(VecModel::from(finance_rows))));
     refresh_trade_costs(
         window,
@@ -986,6 +1008,19 @@ fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &s
             .into(),
         })
         .collect();
+    let table_rows = rows.iter().map(|cost| table_row(vec![
+        cost.id.to_string().into(),
+        cost.product.clone(),
+        cost.date_buy.clone(),
+        (if cost.date_sell.is_empty() { "open".into() } else { cost.date_sell.clone() }),
+        cost.commission_buy.clone(),
+        cost.tax_buy.clone(),
+        cost.commission_sell.clone(),
+        cost.tax_sell.clone(),
+        cost.other.clone(),
+        cost.total.clone(),
+    ])).collect();
+    window.set_trade_cost_table_rows(table_rows_model(table_rows));
     window.set_trade_costs(ModelRc::from(Rc::new(VecModel::from(rows))));
 }
 
