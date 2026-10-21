@@ -83,7 +83,6 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
             trade_type(trade.is_long),
         )
     });
-    // TODO: Add cost_other to the equation.
     let profit_loss_total = trade.date_sell.as_ref().map(|_| {
         calculate_profit_loss_total(
             trade.price_buy,
@@ -95,7 +94,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
             trade.tax_sell,
             trade.commission_sell,
             trade_type(trade.is_long),
-        )
+        ) + trade.cost_other
     });
     let r_multiple = profit_loss
         .filter(|_| risk_initial > 0.0)
