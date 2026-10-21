@@ -272,6 +272,48 @@ fn adds_market_and_uses_it_for_products()
 }
 
 #[test]
+fn profit_and_loss_totals_include_all_trade_costs()
+{
+    // Totals: sale proceeds after 2% tax, less purchase after 1% tax,
+    // less 0.5 and 0.25 commissions, plus 0.4 other cost.
+    for (price_sell, expected_profit_loss, expected_total) in [
+        (12.0, 4.0, 3.37),  // 23.52 - 19.8 - 0.75 + 0.4
+        (8.0, -4.0, -4.47), // 15.68 - 19.8 - 0.75 + 0.4
+    ]
+    {
+        let mut store = Store::open(Path::new(":memory:")).unwrap();
+        store
+            .add_trade(NewTrade {
+                product: ".MGOLD.cfd".into(),
+                date_buy: "2026-09-28".into(),
+                date_sell: Some("2026-09-29".into()),
+                is_long: true,
+                shares_buy: 2,
+                shares_sell: 2,
+                price_buy: 10.0,
+                price_sell,
+                exchange_rate_buy: 1.0,
+                exchange_rate_sell: 1.0,
+                commission_buy: 0.5,
+                tax_buy: 1.0,
+                commission_sell: 0.25,
+                tax_sell: 2.0,
+                cost_other: 0.4,
+                risk_initial: 2.0,
+                risk_percent_initial: Some(0.0),
+                risk_percent_actual: None,
+                trade_pool: None,
+                stoploss_initial: Some(9.0),
+            })
+            .unwrap();
+
+        let trade = &store.load().unwrap().trades[0];
+        assert_eq!(trade.profit_loss, Some(expected_profit_loss));
+        assert!((trade.profit_loss_total.unwrap() - expected_total).abs() < 1e-10);
+    }
+}
+
+#[test]
 fn persists_relations_and_rejects_unknown_trade()
 {
     let mut store = Store::open(Path::new(":memory:")).unwrap();
@@ -308,6 +350,7 @@ fn persists_relations_and_rejects_unknown_trade()
     let journal = store.load().unwrap();
     assert_eq!(journal.trades[0].product, "TEST.cfd");
     assert_eq!(journal.trades[0].shares_buy, 2);
+    assert!((journal.trades[0].profit_loss_total.unwrap() - 2.216).abs() < 1e-10);
     let saved_costs: (f64, f64, f64) = store
         .connection
         .query_row(
@@ -491,6 +534,8 @@ fn stores_short_trade_and_financing()
     let journal = store.load().unwrap();
     assert!((journal.trades[0].profit_loss.unwrap() - 4.0).abs() < 1e-10);
     assert!((journal.trades[0].profit_loss_converted.unwrap() - 4.8).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total.unwrap() - 3.696).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total_converted.unwrap() - 4.4352).abs() < 1e-10);
     assert!((journal.trades[0].risk_initial - 1.54).abs() < 1e-10);
     assert!((journal.trades[0].r_multiple().unwrap() - 4.0 / 1.54).abs() < 1e-10);
     assert!((journal.pool_value_converted.unwrap()
