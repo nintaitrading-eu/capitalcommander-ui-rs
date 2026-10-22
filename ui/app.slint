@@ -63,6 +63,7 @@ export struct TradeRow
     risk-initial: string,
     risk-actual: string,
     profit: string,
+    profit-total: string,
     r: string,
 }
 
@@ -726,6 +727,7 @@ export component AppWindow inherits Window
                         { title: "INITIAL RISK", width: 115px },
                         { title: "ACTUAL RISK", width: 115px },
                         { title: "P/L", width: 105px },
+                        { title: "P/L (tot)", width: 105px },
                         { title: "R", width: 85px },
                     ];
                     rows: root.trade-table-rows;

@@ -997,6 +997,11 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .unwrap_or_else(|| "0,00".into())
                 .into(),
             profit: trade
+                .profit_loss
+                .map(format_table_signed_real)
+                .unwrap_or_else(|| "0,00".into())
+                .into(),
+            profit_total: trade
                 .profit_loss_total
                 .map(format_table_signed_real)
                 .unwrap_or_else(|| "0,00".into())
@@ -1018,6 +1023,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
         trade.risk_initial.clone(),
         trade.risk_actual.clone(),
         trade.profit.clone(),
+        trade.profit_total.clone(),
         trade.r.clone(),
     ])).collect();
     let editing_trade_id = window.get_editing_trade_id();
