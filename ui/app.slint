@@ -197,6 +197,7 @@ export component AppWindow inherits Window
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     pure callback calculate-risk-initial(string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-stoploss-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
+    pure callback calculate-min-target(string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-risk-percentage-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
@@ -666,7 +667,7 @@ export component AppWindow inherits Window
                     Text
                     {
                         text: stoploss.text == ""
-                            ? "—"
+                            ? "0.0"
                             : root.calculate-risk-initial(
                                 stoploss.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
                                 commission-buy.text, commission-sell.text, tax-buy.text, tax-sell.text, trade-side.current-value).to-float().to-fixed(2);
@@ -676,7 +677,7 @@ export component AppWindow inherits Window
                     Text
                     {
                         text: risk-percent.text == ""
-                            ? "—"
+                            ? "0.0"
                             : risk-percent.text.to-float().to-fixed(2);
                         color: root.aqua;
                     }
@@ -684,8 +685,17 @@ export component AppWindow inherits Window
                     Text
                     {
                         text: stoploss.text == ""
-                            ? "—"
+                            ? "0.0"
                             : stoploss.text.to-float().to-fixed(2);
+                        color: root.aqua;
+                    }
+                    Text { text: "Min. target"; color: root.secondary; }
+                    Text
+                    {
+                        text: root.calculate-min-target(
+                            price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text,
+                            price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text,
+                            trade-side.current-value);
                         color: root.aqua;
                     }
                 }

@@ -5,13 +5,34 @@ mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_risk_initial, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
+use libcalculatorfinance::{calculate_close_at_breakeven, calculate_risk_initial, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{language::StandardListViewItem, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 slint::include_modules!();
+
+fn min_target(inputs: [&str; 4], is_long: bool) -> Option<f64>
+{
+    let price = inputs[0].trim().parse::<f64>().ok()?;
+    let shares = inputs[1].trim().parse::<i32>().ok()?;
+    let tax = inputs[2].trim().parse::<f64>().ok()?;
+    let commission = inputs[3].trim().parse::<f64>().ok()?;
+    if !price.is_finite() || price <= 0.0 || shares <= 0 || !tax.is_finite() || !(0.0..100.0).contains(&tax) || !commission.is_finite() || commission < 0.0
+    {
+        return None;
+    }
+    let value = if is_long
+    {
+        calculate_close_at_breakeven(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, trade_type(true))
+    }
+    else
+    {
+        calculate_close_at_breakeven(0.0, 0, 0.0, 0.0, price, shares, tax, commission, trade_type(false))
+    };
+    (value.is_finite() && value >= 0.0).then_some(value)
+}
 
 fn main() -> Result<(), slint::PlatformError>
 {
@@ -112,6 +133,25 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    /* Event: on_calculate_min_target */
+
+    window.on_calculate_min_target(
+        |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, side| {
+            let inputs = if side == "Long"
+            {
+                [&*price_buy, &*shares_buy, &*tax_buy, &*commission_buy]
+            }
+            else
+            {
+                [&*price_sell, &*shares_sell, &*tax_sell, &*commission_sell]
+            };
+            min_target(inputs, side == "Long")
+                .map(|value| format!("{value:.2}"))
+                .unwrap_or_else(|| "0.0".into())
+                .into()
+        },
+    );
+
     /* Event: on_calculate_risk_initial*/
 
     window.on_calculate_risk_initial(
@@ -156,7 +196,7 @@ fn main() -> Result<(), slint::PlatformError>
                 })
                 .filter(|value| value.is_finite() && *value >= 0.0)
                 .map(|value| value.to_string())
-                .unwrap_or_else(|| "—".into())
+                .unwrap_or_else(|| "0.0".into())
                 .into()
         },
     );
@@ -212,7 +252,7 @@ fn main() -> Result<(), slint::PlatformError>
                 })
                 .filter(|value| value.is_finite() && *value >= 0.0)
                 .map(|value| value.to_string())
-                .unwrap_or_else(|| "—".into())
+                .unwrap_or_else(|| "0.0".into())
                 .into()
         },
     );
@@ -268,7 +308,7 @@ fn main() -> Result<(), slint::PlatformError>
                 })
                 .filter(|value| value.is_finite() && *value >= 0.0)
                 .map(|value| value.to_string())
-                .unwrap_or_else(|| "—".into())
+                .unwrap_or_else(|| "0.0".into())
                 .into()
         },
     );
@@ -873,17 +913,17 @@ fn refresh(window: &AppWindow, journal: &Journal)
             risk_actual: trade
                 .risk_actual
                 .map(|value| format!("{value:.2}"))
-                .unwrap_or_else(|| "—".into())
+                .unwrap_or_else(|| "0.0".into())
                 .into(),
             profit: trade
                 .profit_loss_total
                 .map(|n| format!("{n:+.2}"))
-                .unwrap_or_else(|| "—".into())
+                .unwrap_or_else(|| "0.0".into())
                 .into(),
             r: trade
                 .r_multiple()
                 .map(|n| format!("{n:+.2} R"))
-                .unwrap_or_else(|| "-".into())
+                .unwrap_or_else(|| "0.0".into())
                 .into(),
         })
         .collect();

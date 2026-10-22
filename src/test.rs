@@ -5,6 +5,17 @@ use libcalculatorfinance::{calculate_risk_percentage_initial, calculate_stoploss
 use std::path::Path;
 
 #[test]
+fn min_target_uses_entry_side_and_hides_incomplete_input()
+{
+    let long = crate::min_target(["100", "10", "5", "10"], true).unwrap();
+    let short = crate::min_target(["100", "10", "5", "10"], false).unwrap();
+    assert!((long - 102.10526315789474).abs() < 1e-10);
+    assert!((short - 97.89473684210526).abs() < 1e-10);
+    assert_eq!(crate::min_target(["", "10", "5", "10"], true), None);
+    assert_eq!(crate::min_target(["100", "0", "5", "10"], false), None);
+}
+
+#[test]
 fn valid_r_multiple_requires_positive_risk()
 {
     let mut trade = Trade {
