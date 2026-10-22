@@ -5,7 +5,7 @@ mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_close_at_breakeven, calculate_risk_initial, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
+use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{language::StandardListViewItem, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -15,6 +15,20 @@ slint::include_modules!();
 
 fn min_target(inputs: [&str; 4], is_long: bool) -> Option<f64>
 {
+    let (price, shares, tax, commission) = target_inputs(inputs)?;
+    let value = if is_long
+    {
+        calculate_close_at_breakeven(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, trade_type(true))
+    }
+    else
+    {
+        calculate_close_at_breakeven(0.0, 0, 0.0, 0.0, price, shares, tax, commission, trade_type(false))
+    };
+    (value.is_finite() && value >= 0.0).then_some(value)
+}
+
+fn target_inputs(inputs: [&str; 4]) -> Option<(f64, i32, f64, f64)>
+{
     let price = inputs[0].trim().parse::<f64>().ok()?;
     let shares = inputs[1].trim().parse::<i32>().ok()?;
     let tax = inputs[2].trim().parse::<f64>().ok()?;
@@ -23,13 +37,36 @@ fn min_target(inputs: [&str; 4], is_long: bool) -> Option<f64>
     {
         return None;
     }
-    let value = if is_long
+    Some((price, shares, tax, commission))
+}
+
+fn target(inputs: [&str; 4], stoploss: &str, is_long: bool) -> Option<f64>
+{
+    let (price, shares, tax, commission) = target_inputs(inputs)?;
+    let stoploss = stoploss.trim().parse::<f64>().ok()?;
+    if !stoploss.is_finite() || stoploss <= 0.0
     {
-        calculate_close_at_breakeven(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, trade_type(true))
+        return None;
+    }
+    let risk = if is_long
+    {
+        calculate_risk_initial(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, stoploss, trade_type(true))
     }
     else
     {
-        calculate_close_at_breakeven(0.0, 0, 0.0, 0.0, price, shares, tax, commission, trade_type(false))
+        calculate_risk_initial(0.0, 0, 0.0, 0.0, price, shares, tax, commission, stoploss, trade_type(false))
+    };
+    if !risk.is_finite() || risk < 0.0
+    {
+        return None;
+    }
+    let value = if is_long
+    {
+        calculate_close_at_preferred(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, risk, trade_type(true))
+    }
+    else
+    {
+        calculate_close_at_preferred(0.0, 0, 0.0, 0.0, price, shares, tax, commission, risk, trade_type(false))
     };
     (value.is_finite() && value >= 0.0).then_some(value)
 }
@@ -146,6 +183,25 @@ fn main() -> Result<(), slint::PlatformError>
                 [&*price_sell, &*shares_sell, &*tax_sell, &*commission_sell]
             };
             min_target(inputs, side == "Long")
+                .map(|value| format!("{value:.2}"))
+                .unwrap_or_else(|| "0.0".into())
+                .into()
+        },
+    );
+
+    /* Event: on_calculate_target */
+
+    window.on_calculate_target(
+        |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss, side| {
+            let inputs = if side == "Long"
+            {
+                [&*price_buy, &*shares_buy, &*tax_buy, &*commission_buy]
+            }
+            else
+            {
+                [&*price_sell, &*shares_sell, &*tax_sell, &*commission_sell]
+            };
+            target(inputs, &stoploss, side == "Long")
                 .map(|value| format!("{value:.2}"))
                 .unwrap_or_else(|| "0.0".into())
                 .into()

@@ -16,6 +16,17 @@ fn min_target_uses_entry_side_and_hides_incomplete_input()
 }
 
 #[test]
+fn target_uses_initial_risk_for_both_trade_sides()
+{
+    let long = crate::target(["100", "10", "5", "10"], "90", true).unwrap();
+    let short = crate::target(["100", "10", "5", "10"], "110", false).unwrap();
+    assert!((long - 317.10526315789474).abs() < 1e-10);
+    assert!((short - 322.89473684210526).abs() < 1e-10);
+    assert_eq!(crate::target(["100", "10", "5", "10"], "", true), None);
+    assert_eq!(crate::target(["100", "10", "5", "10"], "80", false), None);
+}
+
+#[test]
 fn valid_r_multiple_requires_positive_risk()
 {
     let mut trade = Trade {
