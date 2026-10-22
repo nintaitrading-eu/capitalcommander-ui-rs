@@ -5,12 +5,12 @@ use libcalculatorfinance::{calculate_risk_percentage_initial, calculate_stoploss
 use std::path::Path;
 
 #[test]
-fn table_reals_use_two_decimal_places_and_comma_separator()
+fn table_reals_use_two_decimal_places_and_dot_separator()
 {
-    assert_eq!(crate::format_table_real(12.0), "12,00");
-    assert_eq!(crate::format_table_real(12.345), "12,35");
-    assert_eq!(crate::format_table_signed_real(-1.5), "-1,50");
-    assert_eq!(crate::format_table_signed_real(1.5), "+1,50");
+    assert_eq!(crate::format_table_real(12.0), "12.00");
+    assert_eq!(crate::format_table_real(12.345), "12.35");
+    assert_eq!(crate::format_table_signed_real(-1.5), "-1.50");
+    assert_eq!(crate::format_table_signed_real(1.5), "+1.50");
 }
 
 #[test]
@@ -18,8 +18,9 @@ fn min_target_uses_entry_side_and_hides_incomplete_input()
 {
     let long = crate::min_target(["100", "10", "5", "10"], true).unwrap();
     let short = crate::min_target(["100", "10", "5", "10"], false).unwrap();
-    assert!((long - 102.10526315789474).abs() < 1e-10);
-    assert!((short - 97.89473684210526).abs() < 1e-10);
+    // Entry cost is 1,050 plus two commissions; proceeds retain 95% after tax.
+    assert!((long - 1070.0 / 9.5).abs() < 1e-10);
+    assert!((short - 1070.0 / 9.5).abs() < 1e-10);
     assert_eq!(crate::min_target(["", "10", "5", "10"], true), None);
     assert_eq!(crate::min_target(["100", "0", "5", "10"], false), None);
 }
@@ -29,10 +30,22 @@ fn target_uses_initial_risk_for_both_trade_sides()
 {
     let long = crate::target(["100", "10", "5", "10"], "90", true).unwrap();
     let short = crate::target(["100", "10", "5", "10"], "110", false).unwrap();
-    assert!((long - 317.10526315789474).abs() < 1e-10);
-    assert!((short - 322.89473684210526).abs() < 1e-10);
+    // The initial risks at stoploss 90 and 110 are 215 and 225 respectively.
+    assert!((long - (1070.0 + 215.0) / 9.5).abs() < 1e-10);
+    assert!((short - (1070.0 + 225.0) / 9.5).abs() < 1e-10);
     assert_eq!(crate::target(["100", "10", "5", "10"], "", true), None);
     assert_eq!(crate::target(["100", "10", "5", "10"], "80", false), None);
+}
+
+#[test]
+fn target_uses_risk_even_when_the_implied_long_stoploss_is_negative()
+{
+    let minimum = crate::min_target(["100", "10", "0", "0"], true).unwrap();
+    let target = crate::target(["100", "10", "0", "0"], "-7", true).unwrap();
+
+    assert_eq!(minimum, 100.0);
+    assert_eq!(target, 207.0);
+    assert!(target > minimum);
 }
 
 #[test]
@@ -305,11 +318,11 @@ fn adds_market_and_uses_it_for_products()
 #[test]
 fn profit_and_loss_totals_include_all_trade_costs()
 {
-    // Totals: sale proceeds after 2% tax, less purchase after 1% tax,
+    // Totals: sale proceeds after 2% tax, less purchase including 1% tax,
     // less 0.5 and 0.25 commissions, plus 0.4 other cost.
     for (price_sell, expected_profit_loss, expected_total) in [
-        (12.0, 4.0, 3.37),  // 23.52 - 19.8 - 0.75 + 0.4
-        (8.0, -4.0, -4.47), // 15.68 - 19.8 - 0.75 + 0.4
+        (12.0, 4.0, 2.97),  // 23.52 - 20.2 - 0.75 + 0.4
+        (8.0, -4.0, -4.87), // 15.68 - 20.2 - 0.75 + 0.4
     ]
     {
         let mut store = Store::open(Path::new(":memory:")).unwrap();
@@ -381,7 +394,7 @@ fn persists_relations_and_rejects_unknown_trade()
     let journal = store.load().unwrap();
     assert_eq!(journal.trades[0].product, "TEST.cfd");
     assert_eq!(journal.trades[0].shares_buy, 2);
-    assert!((journal.trades[0].profit_loss_total.unwrap() - 2.216).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total.unwrap() - 2.116).abs() < 1e-10);
     let saved_costs: (f64, f64, f64) = store
         .connection
         .query_row(
@@ -565,8 +578,8 @@ fn stores_short_trade_and_financing()
     let journal = store.load().unwrap();
     assert!((journal.trades[0].profit_loss.unwrap() - 4.0).abs() < 1e-10);
     assert!((journal.trades[0].profit_loss_converted.unwrap() - 4.8).abs() < 1e-10);
-    assert!((journal.trades[0].profit_loss_total.unwrap() - 3.696).abs() < 1e-10);
-    assert!((journal.trades[0].profit_loss_total_converted.unwrap() - 4.4352).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total.unwrap() - 3.656).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total_converted.unwrap() - 4.3872).abs() < 1e-10);
     assert!((journal.trades[0].risk_initial - 1.54).abs() < 1e-10);
     assert!((journal.trades[0].r_multiple().unwrap() - 4.0 / 1.54).abs() < 1e-10);
     assert!((journal.pool_value_converted.unwrap()

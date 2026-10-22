@@ -44,7 +44,7 @@ fn target(inputs: [&str; 4], stoploss: &str, is_long: bool) -> Option<f64>
 {
     let (price, shares, tax, commission) = target_inputs(inputs)?;
     let stoploss = stoploss.trim().parse::<f64>().ok()?;
-    if !stoploss.is_finite() || stoploss <= 0.0
+    if !stoploss.is_finite()
     {
         return None;
     }
