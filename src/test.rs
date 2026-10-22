@@ -5,6 +5,15 @@ use libcalculatorfinance::{calculate_risk_percentage_initial, calculate_stoploss
 use std::path::Path;
 
 #[test]
+fn table_reals_use_two_decimal_places_and_comma_separator()
+{
+    assert_eq!(crate::format_table_real(12.0), "12,00");
+    assert_eq!(crate::format_table_real(12.345), "12,35");
+    assert_eq!(crate::format_table_signed_real(-1.5), "-1,50");
+    assert_eq!(crate::format_table_signed_real(1.5), "+1,50");
+}
+
+#[test]
 fn min_target_uses_entry_side_and_hides_incomplete_input()
 {
     let long = crate::min_target(["100", "10", "5", "10"], true).unwrap();

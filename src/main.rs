@@ -808,14 +808,29 @@ fn set_parameters(window: &AppWindow, journal: &Journal)
         description: parameter.description.clone().into(),
         datatype: parameter.datatype.clone().into(),
     }).collect();
-    let table_rows = rows.iter().map(|parameter| table_row(vec![
-        parameter.id.to_string().into(),
-        parameter.name.clone(),
-        parameter.value.clone(),
-        parameter.value_default.clone(),
-        parameter.datatype.clone(),
-        parameter.description.clone(),
-    ])).collect();
+    let table_rows = rows.iter().map(|parameter| {
+        let display_value = |value: &str| -> SharedString {
+            if parameter.datatype.eq_ignore_ascii_case("REAL")
+            {
+                value.parse::<f64>()
+                    .map(format_table_real)
+                    .unwrap_or_else(|_| value.to_owned())
+                    .into()
+            }
+            else
+            {
+                value.into()
+            }
+        };
+        table_row(vec![
+            parameter.id.to_string().into(),
+            parameter.name.clone(),
+            display_value(&parameter.value),
+            display_value(&parameter.value_default),
+            parameter.datatype.clone(),
+            parameter.description.clone(),
+        ])
+    }).collect();
     window.set_parameter_table_rows(table_rows_model(table_rows));
     window.set_parameters(ModelRc::from(Rc::new(VecModel::from(rows))));
 }
@@ -825,6 +840,16 @@ fn table_row(values: Vec<SharedString>) -> ModelRc<StandardListViewItem>
     ModelRc::from(Rc::new(VecModel::from(
         values.into_iter().map(Into::into).collect::<Vec<_>>(),
     )))
+}
+
+fn format_table_real(value: f64) -> String
+{
+    format!("{value:.2}")
+}
+
+fn format_table_signed_real(value: f64) -> String
+{
+    format!("{value:+.2}")
 }
 
 fn table_rows_model(rows: Vec<ModelRc<StandardListViewItem>>) -> ModelRc<ModelRc<StandardListViewItem>>
@@ -965,21 +990,21 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
-            risk_initial: trade.risk_initial.to_string().into(),
+            risk_initial: format_table_real(trade.risk_initial).into(),
             risk_actual: trade
                 .risk_actual
-                .map(|value| format!("{value:.2}"))
-                .unwrap_or_else(|| "0.0".into())
+                .map(format_table_real)
+                .unwrap_or_else(|| "0,00".into())
                 .into(),
             profit: trade
                 .profit_loss_total
-                .map(|n| format!("{n:+.2}"))
-                .unwrap_or_else(|| "0.0".into())
+                .map(format_table_signed_real)
+                .unwrap_or_else(|| "0,00".into())
                 .into(),
             r: trade
                 .r_multiple()
-                .map(|n| format!("{n:+.2} R"))
-                .unwrap_or_else(|| "0.0".into())
+                .map(|n| format!("{} R", format_table_signed_real(n)))
+                .unwrap_or_else(|| "0,00".into())
                 .into(),
         })
         .collect();
@@ -1014,14 +1039,14 @@ fn refresh(window: &AppWindow, journal: &Journal)
             trade: format!("Trade #{}", entry.trade_id).into(),
             date: entry.date.clone().into(),
             terms: format!(
-                "{} × {:.2} · {:.4}% · {} d",
+                "{} × {} · {}% · {} d",
                 format_number(entry.quantity.into()),
-                entry.price,
-                entry.rate,
+                format_table_real(entry.price),
+                format_table_real(entry.rate),
                 entry.days
             )
             .into(),
-            value: format!("{:.2}", entry.value).into(),
+            value: format_table_real(entry.value).into(),
             comment: entry.comment.clone().into(),
         })
         .collect();
@@ -1088,13 +1113,12 @@ fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &s
             product: trade.product.clone().into(),
             date_buy: trade.date_buy.clone().into(),
             date_sell: trade.date_sell.clone().into(),
-            commission_buy: format!("{:.2}", trade.commission_buy).into(),
-            tax_buy: format!("{:.2}", trade.tax_buy).into(),
-            commission_sell: format!("{:.2}", trade.commission_sell).into(),
-            tax_sell: format!("{:.2}", trade.tax_sell).into(),
-            other: format!("{:.2}", trade.cost_other).into(),
-            total: format!(
-                "{:.2}",
+            commission_buy: format_table_real(trade.commission_buy).into(),
+            tax_buy: format_table_real(trade.tax_buy).into(),
+            commission_sell: format_table_real(trade.commission_sell).into(),
+            tax_sell: format_table_real(trade.tax_sell).into(),
+            other: format_table_real(trade.cost_other).into(),
+            total: format_table_real(
                 trade.commission_buy
                     + trade.tax_buy
                     + trade.commission_sell
