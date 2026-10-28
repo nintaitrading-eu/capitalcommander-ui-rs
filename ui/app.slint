@@ -199,6 +199,7 @@ export component AppWindow inherits Window
     pure callback calculate-risk-initial(string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-stoploss-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-min-target(string, string, string, string, string, string, string, string, string) -> string;
+    pure callback calculate-shares-recommended(string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-target(string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-risk-percentage-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-financing(string, string, string, string, string, string, string, string, string);
@@ -661,6 +662,14 @@ export component AppWindow inherits Window
                 {
                     Text { text: "Info"; color: root.secondary; font-size: 17px; font-weight: 600; }
                     Rectangle { horizontal-stretch: 1; }
+                    Text { text: "Recommended shares"; color: root.secondary; }
+                    Text
+                    {
+                        text: root.calculate-shares-recommended(
+                            root.trade-pool, commission-buy.text, tax-buy.text, price-buy.text,
+                            commission-sell.text, tax-sell.text, price-sell.text, trade-side.current-value);
+                        color: root.aqua;
+                    }
                     Text
                     {
                          text: "Risk";

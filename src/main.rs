@@ -5,7 +5,7 @@ mod calculatorfinance_lib;
 
 use data::{Journal, NewFinancing, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
+use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_shares_recommended, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{language::StandardListViewItem, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -25,6 +25,20 @@ fn min_target(inputs: [&str; 4], is_long: bool) -> Option<f64>
         calculate_close_at_breakeven(0.0, 0, 0.0, 0.0, price, shares, tax, commission, trade_type(false))
     };
     (value.is_finite() && value >= 0.0).then_some(value)
+}
+
+fn recommended_shares(pool: &str, inputs: [&str; 3]) -> Option<i32>
+{
+    let pool = pool.trim().parse::<f64>().ok()?;
+    let commission = inputs[0].trim().parse::<f64>().ok()?;
+    let tax = inputs[1].trim().parse::<f64>().ok()?;
+    let price = inputs[2].trim().parse::<f64>().ok()?;
+    if !pool.is_finite() || pool <= 0.0 || !commission.is_finite() || commission < 0.0
+        || !tax.is_finite() || !(0.0..100.0).contains(&tax) || !price.is_finite() || price <= 0.0
+    {
+        return None;
+    }
+    Some(calculate_shares_recommended(pool, commission, tax, price).max(0))
 }
 
 fn target_inputs(inputs: [&str; 4]) -> Option<(f64, i32, f64, f64)>
@@ -169,6 +183,25 @@ fn main() -> Result<(), slint::PlatformError>
             false
         }
     });
+
+    /* Event: on_calculate_shares_recommended */
+
+    window.on_calculate_shares_recommended(
+        |pool, commission_buy, tax_buy, price_buy, commission_sell, tax_sell, price_sell, side| {
+            let inputs = if side == "Long"
+            {
+                [&*commission_buy, &*tax_buy, &*price_buy]
+            }
+            else
+            {
+                [&*commission_sell, &*tax_sell, &*price_sell]
+            };
+            recommended_shares(&pool, inputs)
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "0".into())
+                .into()
+        },
+    );
 
     /* Event: on_calculate_min_target */
 
