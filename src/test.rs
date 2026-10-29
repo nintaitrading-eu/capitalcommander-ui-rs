@@ -1,5 +1,5 @@
 use crate::calculatorfinance_lib::trade_type;
-use crate::data::{NewFinancing, NewTrade, Store, Trade};
+use crate::data::{NewTrade, Store, Trade};
 use crate::check_date;
 use libcalculatorfinance::{calculate_risk_percentage_initial, calculate_stoploss_initial};
 use std::path::Path;
@@ -213,7 +213,7 @@ fn calculates_and_saves_trade_risks_when_closed()
         12.0, 2, 0.25, 0.5, 0.0, 2, 0.25, 1.0, 1.0, 400.0, trade_type(true),
     );
     let open = NewTrade {
-        product: ".MGOLD.cfd".into(),
+        product: "FDX".into(),
         date_buy: "2026-09-28".into(),
         date_sell: None,
         is_long: true,
@@ -260,7 +260,7 @@ fn calculates_and_saves_trade_risks_when_closed()
         .update_trade(
             id,
             NewTrade {
-                product: ".MGOLD.cfd".into(),
+                product: "FDX".into(),
                 date_buy: "2026-09-28".into(),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
@@ -374,7 +374,7 @@ fn profit_and_loss_totals_include_all_trade_costs()
         let mut store = Store::open(Path::new(":memory:")).unwrap();
         store
             .add_trade(NewTrade {
-                product: ".MGOLD.cfd".into(),
+                product: "FDX".into(),
                 date_buy: "2026-09-28".into(),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
@@ -404,14 +404,14 @@ fn profit_and_loss_totals_include_all_trade_costs()
 }
 
 #[test]
-fn persists_relations_and_rejects_unknown_trade()
+fn persists_trade_relations()
 {
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let initial = store.load().unwrap();
     assert!(initial.trades.is_empty());
-    assert!(initial.products.iter().any(|p| p.name == ".MGOLD.cfd"));
+    assert!(initial.products.iter().any(|p| p.name == "FDX"));
     store
-        .add_product("TEST.cfd", "Test contract", "EUR", "cfd other non-share")
+        .add_product("TEST.cfd", "Test contract", "EUR", "EUREX")
         .unwrap();
     store
         .add_trade(NewTrade {
@@ -450,45 +450,14 @@ fn persists_relations_and_rejects_unknown_trade()
         )
         .unwrap();
     assert_eq!(saved_costs, (0.5, 0.25, 0.25));
-    let trade_id = journal.trades[0].id;
-    store
-        .add_financing(NewFinancing {
-            trade_id,
-            date: "2026-09-29".into(),
-            quantity: 2,
-            price: 12.0,
-            rate: 2.0,
-            exchange_rate: 1.0,
-            days: 1,
-            value: 0.1,
-            comment: "Test".into(),
-        })
-        .unwrap();
-    let financing = store.load().unwrap().financing;
-    assert_eq!(financing.len(), 1);
-    assert_eq!(financing[0].trade_id, trade_id);
-    assert_eq!(financing[0].comment, "Test");
-    assert!(store
-        .add_financing(NewFinancing {
-            trade_id: 999,
-            date: "2026-09-29".into(),
-            quantity: 1,
-            price: 1.0,
-            rate: 1.0,
-            exchange_rate: 1.0,
-            days: 1,
-            value: 1.0,
-            comment: String::new(),
-        })
-        .is_err());
 }
 
 #[test]
-fn closes_an_existing_trade_without_changing_its_id_or_financing()
+fn closes_an_existing_trade_without_changing_its_id()
 {
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let open_trade = NewTrade {
-        product: ".MGOLD.cfd".into(),
+        product: "FDX".into(),
         date_buy: "2026-09-28".into(),
         date_sell: None,
         is_long: true,
@@ -514,23 +483,10 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
     assert_eq!(store.load().unwrap().trades[0].price_sell, 11.0);
     assert_eq!(store.load().unwrap().trades[0].profit_loss, None);
     store
-        .add_financing(NewFinancing {
-            trade_id: id,
-            date: "2026-09-29".into(),
-            quantity: 2,
-            price: 10.0,
-            rate: 1.0,
-            exchange_rate: 1.0,
-            days: 1,
-            value: 0.1,
-            comment: String::new(),
-        })
-        .unwrap();
-    store
         .update_trade(
             id,
             NewTrade {
-                product: ".MGOLD.cfd".into(),
+                product: "FDX".into(),
                 date_buy: "2026-09-28".into(),
                 date_sell: Some("2026-09-30".into()),
                 is_long: true,
@@ -562,10 +518,8 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
     assert_eq!(journal.trades[0].profit_loss, Some(4.0));
     let pool_after_close = journal.pool_value_converted;
     assert!(pool_after_close.unwrap() > 75000.0);
-    assert_eq!(journal.financing.len(), 1);
-    assert_eq!(journal.financing[0].trade_id, id);
     let closed_trade = NewTrade {
-        product: ".MGOLD.cfd".into(),
+        product: "FDX".into(),
         date_buy: "2026-09-28".into(),
         date_sell: Some("2026-09-30".into()),
         is_long: true,
@@ -591,7 +545,7 @@ fn closes_an_existing_trade_without_changing_its_id_or_financing()
 }
 
 #[test]
-fn stores_short_trade_and_financing()
+fn stores_short_trade()
 {
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let stoploss = calculate_stoploss_initial(
@@ -599,7 +553,7 @@ fn stores_short_trade_and_financing()
         1.5 / 75000.0 * 100.0, 75000.0, trade_type(false),
     );
     let trade = NewTrade {
-        product: ".MGOLD.cfd".into(),
+        product: "FDX".into(),
         date_buy: "2026-09-28".into(),
         date_sell: Some("2026-09-29".into()),
         is_long: false,
@@ -631,25 +585,6 @@ fn stores_short_trade_and_financing()
     assert!((journal.pool_value_converted.unwrap()
         - journal.trades[0].trade_pool_converted.unwrap()
         - journal.trades[0].profit_loss_total_converted.unwrap()).abs() < 1e-10);
-
-    let id = journal.trades[0].id;
-    store
-        .add_financing(NewFinancing {
-            trade_id: id,
-            date: "2026-09-29".into(),
-            quantity: 2,
-            price: 10.0,
-            rate: 1.0,
-            exchange_rate: 1.0,
-            days: 1,
-            value: 0.4,
-            comment: String::new(),
-        })
-        .unwrap();
-    let financing = store.load().unwrap().financing;
-    assert_eq!(financing.len(), 1);
-    assert_eq!(financing[0].trade_id, id);
-    assert_eq!(financing[0].quantity, 2);
 }
 
 #[test]
@@ -657,7 +592,7 @@ fn a_losing_trade_reduces_the_pool_only_when_closed()
 {
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let trade = NewTrade {
-        product: ".MGOLD.cfd".into(),
+        product: "FDX".into(),
         date_buy: "2026-09-28".into(),
         date_sell: None,
         is_long: true,
@@ -685,7 +620,7 @@ fn a_losing_trade_reduces_the_pool_only_when_closed()
         .update_trade(
             id,
             NewTrade {
-                product: ".MGOLD.cfd".into(),
+                product: "FDX".into(),
                 date_buy: "2026-09-28".into(),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
@@ -718,12 +653,12 @@ fn a_losing_trade_reduces_the_pool_only_when_closed()
 }
 
 #[test]
-fn stores_exchange_rates_and_financing()
+fn stores_exchange_rates()
 {
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     store
         .add_trade(NewTrade {
-            product: ".MGOLD.cfd".into(),
+            product: "FDX".into(),
             date_buy: "2026-09-28".into(),
             date_sell: None,
             is_long: true,
@@ -750,7 +685,7 @@ fn stores_exchange_rates_and_financing()
         .update_trade(
             id,
             NewTrade {
-                product: ".MGOLD.cfd".into(),
+                product: "FDX".into(),
                 date_buy: "2026-09-28".into(),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
@@ -787,24 +722,8 @@ fn stores_exchange_rates_and_financing()
     assert!((journal.pool_value_converted.unwrap()
         - journal.trades[0].trade_pool_converted.unwrap()
         - journal.trades[0].profit_loss_total_converted.unwrap()).abs() < 1e-10);
-    store
-        .add_financing(NewFinancing {
-            trade_id: id,
-            date: "2026-09-29".into(),
-            quantity: 2,
-            price: 12.0,
-            rate: 1.0,
-            exchange_rate: 1.1,
-            days: 1,
-            value: 0.5,
-            comment: String::new(),
-        })
-        .unwrap();
-    let financing = store.load().unwrap().financing;
-    assert_eq!(financing.len(), 1);
-    assert_eq!(financing[0].trade_id, id);
-    assert_eq!(financing[0].value, 0.5);
 }
+
 #[test]
 fn date_range_accepts_open_ends_and_rejects_invalid_ranges()
 {

@@ -3,9 +3,9 @@ mod util;
 #[path = "calculatorfinance-lib.rs"]
 mod calculatorfinance_lib;
 
-use data::{Journal, NewFinancing, NewTrade, Store, Trade};
+use data::{Journal, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_shares_recommended, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage, convert_from_orig};
+use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_shares_recommended, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage};
 use util::{check_date, date_in_range, format_number, validated_as_positive};
 use slint::{language::StandardListViewItem, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -113,14 +113,7 @@ fn main() -> Result<(), slint::PlatformError>
 
     refresh(&window, &journal.borrow());
 
-    window.set_status(
-        format!(
-            "Loaded {} trades and {} financing entries",
-            journal.borrow().trades.len(),
-            journal.borrow().financing.len()
-        )
-        .into(),
-    );
+    window.set_status(format!("Loaded {} trades", journal.borrow().trades.len()).into());
 
     /* Event: Filter journal */
 
@@ -599,74 +592,6 @@ fn main() -> Result<(), slint::PlatformError>
         },
     );
 
-    /* Event: on_save_financing */
-
-    let weak = window.as_weak();
-    let model = journal.clone();
-    let database = store.clone();
-    window.on_save_financing(
-        move |trade_id, date, quantity, price, rate, exchange_rate, days, value, comment| {
-            if let Some(window) = weak.upgrade()
-            {
-                let result = (|| -> Result<(), String> {
-                    let trade_id: i64 = trade_id
-                        .trim()
-                        .parse()
-                        .map_err(|_| "Trade ID must be a positive integer")?;
-                    check_date(&date, "Date", false)?;
-                    let quantity = validated_as_positive(&quantity, "Quantity")? as i32;
-                    let price = validated_as_positive(&price, "Price")?;
-                    let rate = validated_as_positive(&rate, "Rate")?;
-                    let exchange_rate = validated_as_positive(&exchange_rate, "Exchange rate")?;
-                    let days: i64 = days
-                        .trim()
-                        .parse()
-                        .map_err(|_| "Days must be a positive integer")?;
-                    if days == 0
-                    {
-                        return Err("Days must be greater than zero".into());
-                    }
-                    let price_eur = convert_from_orig(price, exchange_rate);
-                    let calculated = quantity as f64 * price_eur * rate / 100.0 * days as f64 / 360.0;
-                    let value = if value.trim().is_empty()
-                    {
-                        calculated
-                    }
-                    else
-                    {
-                        validated_as_positive(&value, "Value")?
-                    };
-                    if !value.is_finite()
-                    {
-                        return Err("Calculated value is too large".into());
-                    }
-                    database.borrow_mut().add_financing(NewFinancing {
-                        trade_id,
-                        date: date.into(),
-                        quantity,
-                        price,
-                        rate,
-                        exchange_rate,
-                        days,
-                        value,
-                        comment: comment.into(),
-                    })?;
-                    *model.borrow_mut() = database.borrow().load()?;
-                    Ok(())
-                })();
-                match result
-                {
-                    Ok(()) =>
-                    {
-                        refresh(&window, &model.borrow());
-                        window.set_status("Financing entry saved".into());
-                    }
-                    Err(error) => window.set_status(error.into()),
-                }
-            }
-        },
-    );
-
     /* Event: on_save_product */
 
     let weak = window.as_weak();
@@ -1090,38 +1015,6 @@ fn refresh(window: &AppWindow, journal: &Journal)
     window.set_trade_table_rows(table_rows_model(table_rows));
     window.set_trades(ModelRc::from(Rc::new(VecModel::from(rows))));
     window.set_selected_trade_row(selected_row);
-    let finance: Vec<_> = journal.financing.iter().collect();
-    let financing_total: f64 = finance.iter().map(|entry| entry.value).sum();
-    window.set_financing_total(format!("{financing_total:.2}").into());
-    let finance_rows: Vec<_> = finance
-        .iter()
-        .rev()
-        .map(|entry| FinancingRow {
-            id: entry.id as i32,
-            trade: format!("Trade #{}", entry.trade_id).into(),
-            date: entry.date.clone().into(),
-            terms: format!(
-                "{} × {} · {}% · {} d",
-                format_number(entry.quantity.into()),
-                format_table_real(entry.price),
-                format_table_real(entry.rate),
-                entry.days
-            )
-            .into(),
-            value: format_table_real(entry.value).into(),
-            comment: entry.comment.clone().into(),
-        })
-        .collect();
-    let table_rows = finance_rows.iter().map(|entry| table_row(vec![
-        entry.id.to_string().into(),
-        entry.trade.clone(),
-        entry.date.clone(),
-        entry.terms.clone(),
-        entry.value.clone(),
-        entry.comment.clone(),
-    ])).collect();
-    window.set_financing_table_rows(table_rows_model(table_rows));
-    window.set_financing(ModelRc::from(Rc::new(VecModel::from(finance_rows))));
     refresh_trade_costs(
         window,
         journal,

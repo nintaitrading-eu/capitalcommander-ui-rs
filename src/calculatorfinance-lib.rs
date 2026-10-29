@@ -17,7 +17,7 @@ impl Trade
     }
 }
 
-pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_total: f64) -> Result<
+pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     (
         Option<f64>,
         Option<f64>,

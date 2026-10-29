@@ -70,16 +70,6 @@ export struct TradeRow
     r: string,
 }
 
-export struct FinancingRow
-{
-    id: int,
-    trade: string,
-    date: string,
-    terms: string,
-    value: string,
-    comment: string,
-}
-
 export struct TradeCostRow
 {
     id: int,
@@ -175,13 +165,10 @@ export component AppWindow inherits Window
     in-out property <int> selected-trade-row: -1;
     private property <string> trade-pool: root.current-pool-exact;
     private property <string> risk-entry-mode: "";
-    in-out property <[FinancingRow]> financing;
-    in-out property <[[StandardListViewItem]]> financing-table-rows;
     in-out property <string> trade-count: "0";
     in-out property <string> win-rate: "—";
     in-out property <string> expectancy: "—";
     in-out property <string> total-pl: "—";
-    in-out property <string> financing-total: "—";
     in-out property <string> costs-date-from: "";
     in-out property <string> costs-date-to: "";
     private property <string> costs-draft-from: "";
@@ -205,7 +192,6 @@ export component AppWindow inherits Window
     pure callback calculate-shares-recommended(string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-target(string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-risk-percentage-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
-    callback save-financing(string, string, string, string, string, string, string, string, string);
     callback save-product(string, string, string, string);
     callback save-market(string, string, string);
     callback save-parameter(int, string, string, string, string, string) -> bool;
@@ -226,13 +212,12 @@ export component AppWindow inherits Window
         {
             title: "Trade";
             MenuItem { title: "Journal"; activated => { root.page = "Journal"; } }
-            MenuItem { title: "Trade costs"; activated => { root.page = "Trade costs"; } }
             MenuItem { title: "Expectancy"; activated => { root.page = "Expectancy"; } }
         }
         Menu
         {
-            title: "Finance";
-            MenuItem { title: "Financing"; activated => { root.page = "Financing"; } }
+            title: "Report";
+            MenuItem { title: "Trade costs"; activated => { root.page = "Trade costs"; } }
         }
         Menu
         {
@@ -784,59 +769,6 @@ export component AppWindow inherits Window
                         root.trade-pool = root.trades[row].trade-pool == "" ? root.current-pool-exact : root.trades[row].trade-pool;
                     }
                 }
-            }
-        }
-
-/*******************************************************************************
- * Financing
- *******************************************************************************/
-        if root.page == "Financing": VerticalBox
-        {
-            spacing: 4px;
-            Text { text: "Financing total: " + root.financing-total; color: root.accent; font-size: 18px; font-weight: 600; }
-            Text { text: "Log financing"; color: root.primary; font-size: 17px; font-weight: 600; }
-            HorizontalBox
-            {
-                spacing: 4px;
-                VerticalBox { Text { text: "Trade ID"; color: root.secondary; } fin-trade := LineEdit { placeholder-text: "Trade ID"; } }
-                VerticalBox { Text { text: "Date"; color: root.secondary; } fin-date := LineEdit { placeholder-text: "YYYY-MM-DD"; } }
-                VerticalBox { Text { text: "Quantity"; color: root.secondary; } fin-qty := LineEdit { text: "1"; } }
-                VerticalBox { Text { text: "Price"; color: root.secondary; } fin-price := LineEdit { text: "0"; } }
-                VerticalBox { Text { text: "Rate %"; color: root.secondary; } fin-rate := LineEdit { text: "0"; } }
-            }
-            HorizontalBox
-            {
-                spacing: 4px;
-                VerticalBox { Text { text: "exchange-rate rate"; color: root.secondary; } fin-exchange-rate := LineEdit { text: "1"; } }
-                VerticalBox { Text { text: "Days"; color: root.secondary; } fin-days := LineEdit { text: "1"; } }
-                VerticalBox { Text { text: "Value"; color: root.secondary; } fin-value := LineEdit { placeholder-text: "Auto"; } }
-                VerticalBox { Text { text: "Comment"; color: root.secondary; } fin-comment := LineEdit { placeholder-text: "Optional"; } }
-                Rectangle { horizontal-stretch: 1; }
-                Button
-                {
-                    text: "Log financing";
-                    height: 24px;
-                    primary: true;
-                    clicked =>
-                    {
-                        root.save-financing(fin-trade.text, fin-date.text, fin-qty.text, fin-price.text, fin-rate.text, fin-exchange-rate.text, fin-days.text, fin-value.text, fin-comment.text);
-                    }
-                }
-            }
-            Text { text: "Financing entries"; color: root.primary; font-size: 17px; font-weight: 600; }
-            Rectangle { height: 1px; background: root.divider; }
-            StandardTableView
-            {
-                vertical-stretch: 1;
-                columns: [
-                    { title: "ID", width: 65px },
-                    { title: "TRADE", width: 110px },
-                    { title: "DATE", width: 120px },
-                    { title: "TERMS", width: 310px },
-                    { title: "VALUE", width: 105px },
-                    { title: "COMMENT", width: 310px },
-                ];
-                rows: root.financing-table-rows;
             }
         }
 

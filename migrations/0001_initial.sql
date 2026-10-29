@@ -116,24 +116,6 @@ CREATE TABLE t_trade (
 
 CREATE INDEX idx_trade_product ON t_trade(product_id, date_buy);
 
-CREATE TABLE t_financing (
-    financing_id INTEGER PRIMARY KEY,
-    trade_id INTEGER NOT NULL REFERENCES t_trade(trade_id),
-    date TEXT NOT NULL,
-    quantity INTEGER NOT NULL CHECK (quantity > 0),
-    price REAL NOT NULL CHECK (price >= 0),
-    rate REAL NOT NULL CHECK (rate >= 0),
-    exchange_rate REAL NOT NULL CHECK (exchange_rate > 0),
-    days INTEGER NOT NULL CHECK (days > 0),
-    value REAL NOT NULL CHECK (value >= 0),
-    comment TEXT NOT NULL DEFAULT '',
-    is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
-    date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
-
-CREATE INDEX idx_financing_trade ON t_financing(trade_id, date);
-
 ----------------------------------------------------------------
 -- Add initial values.
 ----------------------------------------------------------------

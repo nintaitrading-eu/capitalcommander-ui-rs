@@ -1,5 +1,5 @@
-use crate::calculatorfinance_lib::{trade_calculations, trade_type};
-use libcalculatorfinance::{convert_to_orig, convert_from_orig, calculate_profit_loss};
+use crate::calculatorfinance_lib::trade_calculations;
+use libcalculatorfinance::convert_to_orig;
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 
@@ -69,20 +69,6 @@ pub struct Trade
     pub profit_loss_total_converted: Option<f64>,
 }
 
-#[derive(Clone, Debug)]
-pub struct Financing
-{
-    pub id: i64,
-    pub trade_id: i64,
-    pub date: String,
-    pub quantity: i32,
-    pub price: f64,
-    pub rate: f64,
-    pub days: i64,
-    pub value: f64,
-    pub comment: String,
-}
-
 #[derive(Clone)]
 pub struct NewTrade
 {
@@ -108,26 +94,12 @@ pub struct NewTrade
     pub stoploss_initial: Option<f64>,
 }
 
-pub struct NewFinancing
-{
-    pub trade_id: i64,
-    pub date: String,
-    pub quantity: i32,
-    pub price: f64,
-    pub rate: f64,
-    pub exchange_rate: f64,
-    pub days: i64,
-    pub value: f64,
-    pub comment: String,
-}
-
 pub struct Journal
 {
     pub products: Vec<Product>,
     pub markets: Vec<Market>,
     pub parameters: Vec<Parameter>,
     pub trades: Vec<Trade>,
-    pub financing: Vec<Financing>,
     pub pool_value_converted: Option<f64>,
 }
 
@@ -305,41 +277,11 @@ impl Store
             trades.push(row.map_err(db_error)?);
         }
 
-        let mut financing = Vec::new();
-        let mut statement = self
-            .connection
-            .prepare(
-                "SELECT f.financing_id, f.trade_id, f.date, f.quantity, f.price,
-                    f.rate, f.days, f.value, f.comment
-             FROM t_financing f JOIN t_trade t ON t.trade_id = f.trade_id
-             WHERE f.is_deleted = 0 AND t.is_deleted = 0 ORDER BY f.financing_id",
-            )
-            .map_err(db_error)?;
-        let rows = statement
-            .query_map([], |row| {
-                Ok(Financing {
-                    id: row.get(0)?,
-                    trade_id: row.get(1)?,
-                    date: row.get(2)?,
-                    quantity: row.get(3)?,
-                    price: row.get(4)?,
-                    rate: row.get(5)?,
-                    days: row.get(6)?,
-                    value: row.get(7)?,
-                    comment: row.get(8)?,
-                })
-            })
-            .map_err(db_error)?;
-        for row in rows
-        {
-            financing.push(row.map_err(db_error)?);
-        }
         Ok(Journal {
             products,
             markets,
             parameters,
             trades,
-            financing,
             pool_value_converted,
         })
     }
@@ -500,7 +442,7 @@ impl Store
             )
             .map_err(db_error)?;
         let cost_id = transaction.last_insert_rowid();
-        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, 0.0)?;
+        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value)?;
         transaction
             .execute(
                 "INSERT INTO t_trade_calculated(risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, risk_percent_initial, risk_percent_actual, stoploss_initial, stoploss_actual, target_minimum, target_preferred, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple)
@@ -553,11 +495,6 @@ impl Store
             .optional()
             .map_err(db_error)?
             .ok_or("Select a product by name")?;
-        let financing_total: f64 = self.connection.query_row(
-            "SELECT COALESCE(SUM(value), 0) FROM t_financing WHERE trade_id = ?1 AND is_deleted = 0",
-            [id],
-            |row| row.get(0),
-        ).map_err(db_error)?;
         let (cost_id, calculated_id, pool_value): (i64, i64, f64) = self
             .connection
             .query_row(
@@ -586,7 +523,7 @@ impl Store
                 ],
             )
             .map_err(db_error)?;
-        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, financing_total)?;
+        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value)?;
         transaction
             .execute(
                 "UPDATE t_trade SET product_id = ?1, date_buy = ?2, date_sell = ?3, is_long = ?4,
@@ -656,107 +593,6 @@ impl Store
         {
             record_pool_profit_loss_total_converted(&transaction, profit_loss_total_converted)?;
         }
-        transaction.commit().map_err(db_error)?;
-        Ok(())
-    }
-
-    pub fn add_financing(&mut self, entry: NewFinancing) -> Result<(), String>
-    {
-        let (
-            calculated_id,
-            is_long,
-            shares_buy,
-            shares_sell,
-            price_buy,
-            price_sell,
-            exchange_rate_buy,
-            exchange_rate_sell,
-            commission_buy,
-            tax_buy,
-            commission_sell,
-            tax_sell,
-            cost_other,
-            is_closed,
-        ): (i64, bool, i32, i32, f64, f64, f64, f64, f64, f64, f64, f64, f64, bool) = self
-            .connection
-            .query_row(
-                "SELECT t.trade_calculated_id, t.is_long, t.shares_buy, t.shares_sell, t.price_buy, t.price_sell,
-                        t.exchange_rate_buy, t.exchange_rate_sell, cost.commission_buy, cost.tax_buy,
-                        cost.commission_sell, cost.tax_sell, cost.other, t.date_sell IS NOT NULL
-                   FROM t_trade t
-                   JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
-                  WHERE t.trade_id = ?1
-                    AND t.is_deleted = 0",
-                [entry.trade_id],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        row.get(3)?,
-                        row.get(4)?,
-                        row.get(5)?,
-                        row.get(6)?,
-                        row.get(7)?,
-                        row.get(8)?,
-                        row.get(9)?,
-                        row.get(10)?,
-                        row.get(11)?,
-                        row.get(12)?,
-                        row.get(13)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(db_error)?
-            .ok_or_else(|| format!("Trade #{} does not exist", entry.trade_id))?;
-        let transaction = self.connection.transaction().map_err(db_error)?;
-        transaction.execute(
-            "INSERT INTO t_financing(trade_id, date, quantity, price, rate, exchange_rate, days, value, comment)
-                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![entry.trade_id, entry.date, entry.quantity, entry.price, entry.rate,
-                    entry.exchange_rate, entry.days, entry.value, entry.comment]
-        ).map_err(db_error)?;
-        let financing_total: f64 = transaction.query_row(
-            "SELECT COALESCE(SUM(value), 0)
-               FROM t_financing
-              WHERE trade_id = ?1
-                AND is_deleted = 0",
-            [entry.trade_id],
-            |row| row.get(0),
-        ).map_err(db_error)?;
-        let profit_loss_total = if is_closed
-        {
-            Some(calculate_profit_loss(
-                price_buy,
-                shares_buy,
-                price_sell,
-                shares_sell,
-                trade_type(is_long)
-            ))
-        }
-        else
-        {
-            None
-        };
-        let profit_loss_total_converted = if profit_loss_total.is_some()
-        {
-            Some(convert_from_orig(profit_loss_total.unwrap(), entry.exchange_rate))
-        }
-        else
-        {
-            None
-        };
-        transaction
-            .execute(
-                "UPDATE t_trade_calculated
-                    SET profit_loss_total = ?1,
-                        profit_loss_total_converted = ?2,
-                        date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE trade_calculated_id = ?3",
-                params![profit_loss_total, profit_loss_total_converted, calculated_id],
-            )
-            .map_err(db_error)?;
         transaction.commit().map_err(db_error)?;
         Ok(())
     }
