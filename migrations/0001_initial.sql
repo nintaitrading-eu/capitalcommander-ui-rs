@@ -132,10 +132,13 @@ CREATE TABLE t_financing (
 
 CREATE INDEX idx_financing_trade ON t_financing(trade_id, date);
 
+----------------------------------------------------------------
+-- Add initial values.
+----------------------------------------------------------------
 INSERT INTO t_pool(pool_value, pool_value_converted) VALUES
     (75000.0, 75000.0);
 INSERT INTO t_product_type(name, description) VALUES
-    ('cfd', 'Contracts for difference');
+    ('futures', 'Futures contracts');
 INSERT INTO t_currency(code, description) VALUES
     ('EUR', 'Euro'),
     ('USD', 'United States Dollar'),
@@ -143,20 +146,13 @@ INSERT INTO t_currency(code, description) VALUES
 INSERT INTO t_parameter(name, value, value_default, description, datatype, date_created) VALUES
     ('base_currency', 'EUR', 'EUR', 'Base currency', 'string', strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 INSERT INTO t_market(code, name, country) VALUES
-    ('cfd other non-share', 'CFD - other non-share', ''),
-    ('cfd .gold', 'CFD - World Spot Gold', 'US'),
-    ('cfd .silver', 'CFD - World Spot Silver', 'US'),
-    ('cfd oil', 'CFD - Brent and WTI oil', 'US');
+    ('EUREX', 'EUREX - Indices, equities, ...', ''),
+    ('COMEX', 'COMEX - Precious metals, commodities, ...', '');
 
--- Starter catalog from the API product seed, with trailing spaces normalized.
+-- Tick = basis point or move
+-- It is usually 1.0, unless we are dealing with Forex or something.
 INSERT INTO t_product(name, description, product_type_id, currency_id, market_id, tick, tick_value) VALUES
-    ('.MGOLD.cfd', 'MINI Spot Gold, US Dollar', 1, 2, 2, 1.0, 1.0),
-    ('.GOLD.cfd', 'Spot Gold, US Dollar', 1, 2, 2, 1.0, 1.0),
-    ('.MSILVER.cfd', 'Spot Mini Silver, US Dollar/100', 1, 2, 3, 1.0, 1.0),
-    ('.SILVER.cfd', 'Spot Silver, US Dollar/100', 1, 2, 3, 1.0, 1.0),
-    ('.BRENT.cfd', 'SPOT Brent Crude Oil, US Dollar/100', 1, 2, 4, 1.0, 1.0),
-    ('.WTI.cfd', 'SPOT WTI Light Crude Oil, US Dollar', 1, 2, 4, 1.0, 1.0),
-    ('.N25.cfd', 'Netherlands 25 cash, Euro', 1, 1, 1, 1.0, 1.0),
-    ('.DE30.cfd', 'Germany 30 cash, Euro', 1, 1, 1, 1.0, 1.0),
-    ('.ES35.cfd', 'Spain 35 cash, Euro', 1, 1, 1, 1.0, 1.0),
-    ('.F40.cfd', 'France 40 cash, Euro', 1, 1, 1, 1.0, 1.0);
+    ('FDX', 'Micro-DAX', 1, 1, 1, 1.0, 1.0),
+    ('FDXM', 'Mini-DAX', 1, 1, 1, 1.0, 5.0),
+    ('MGC', 'Micro GOLD', 1, 1, 2, 1.0, 10.0),
+    ('QO', 'E-mini GOLD', 1, 1, 2, 1.0, 50.0);
