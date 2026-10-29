@@ -91,6 +91,8 @@ export struct ProductRow
     description: string,
     currency: string,
     market: string,
+    tick: string,
+    tick-value: string,
 }
 
 export struct MarketRow
@@ -198,7 +200,7 @@ export component AppWindow inherits Window
     pure callback calculate-shares-recommended(string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-target(string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-risk-percentage-initial(string, string, string, string, string, string, string, string, string, string, string) -> string;
-    callback save-product(string, string, string, string);
+    callback save-product(string, string, string, string, string, string);
     callback save-market(string, string, string);
     callback save-parameter(int, string, string, string, string, string) -> bool;
     callback quit();
@@ -890,6 +892,21 @@ export component AppWindow inherits Window
                     }
                 }
             }
+            HorizontalBox
+            {
+                spacing: 8px;
+                VerticalBox
+                {
+                    Text { text: "Tick"; color: root.secondary; }
+                    product-tick := LineEdit { width: 140px; text: "1"; }
+                }
+                VerticalBox
+                {
+                    Text { text: "Tick value"; color: root.secondary; }
+                    product-tick-value := LineEdit { width: 140px; text: "1"; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
             Button
             {
                 text: "Add product";
@@ -897,7 +914,7 @@ export component AppWindow inherits Window
                 primary: true;
                 clicked =>
                 {
-                    root.save-product(product-name.text, product-description.text, product-currency.current-value, product-market.current-value);
+                    root.save-product(product-name.text, product-description.text, product-currency.current-value, product-market.current-value, product-tick.text, product-tick-value.text);
                 }
             }
             Text { text: "Product catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
@@ -909,6 +926,8 @@ export component AppWindow inherits Window
                     { title: "NAME", width: 190px },
                     { title: "CURRENCY", width: 125px },
                     { title: "MARKET", width: 200px },
+                    { title: "TICK", width: 90px },
+                    { title: "TICK VALUE", width: 120px },
                     { title: "DESCRIPTION", width: 520px },
                 ];
                 rows: root.product-table-rows;

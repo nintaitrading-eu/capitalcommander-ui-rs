@@ -14,6 +14,20 @@ fn table_reals_use_two_decimal_places_and_dot_separator()
 }
 
 #[test]
+fn loads_product_tick_and_tick_value()
+{
+    let store = Store::open(Path::new(":memory:")).unwrap();
+    store.connection.execute(
+        "UPDATE t_product SET tick = 0.25, tick_value = 12.5 WHERE name = 'FDX'",
+        [],
+    ).unwrap();
+    let journal = store.load().unwrap();
+    let product = journal.products.iter().find(|product| product.name == "FDX").unwrap();
+    assert_eq!(product.tick, 0.25);
+    assert_eq!(product.tick_value, 12.5);
+}
+
+#[test]
 fn review_preview_truncates_only_after_50_characters()
 {
     let review = format!("{}étail", "a".repeat(49));
@@ -365,19 +379,15 @@ fn adds_market_and_uses_it_for_products()
     assert_eq!(market.country, "BE");
 
     store
-        .add_product("BRU.cfd", "Brussels product", "EUR", "XBRU")
+        .add_product("BRU.cfd", "Brussels product", "EUR", "XBRU", 0.25, 12.5)
         .unwrap();
-    assert_eq!(
-        store
-            .load()
-            .unwrap()
-            .products
-            .iter()
-            .find(|product| product.name == "BRU.cfd")
-            .unwrap()
-            .market,
-        "XBRU"
-    );
+    let journal = store.load().unwrap();
+    let product = journal.products.iter().find(|product| product.name == "BRU.cfd").unwrap();
+    assert_eq!(product.market, "XBRU");
+    assert_eq!(product.tick, 0.25);
+    assert_eq!(product.tick_value, 12.5);
+    assert!(store.add_product("BAD", "", "EUR", "XBRU", 0.0, 1.0).is_err());
+    assert!(store.add_product("BAD", "", "EUR", "XBRU", 1.0, f64::NAN).is_err());
     assert!(store.add_market("XBRU", "Duplicate", "BE").is_err());
 }
 
@@ -431,7 +441,7 @@ fn persists_trade_relations()
     assert!(initial.trades.is_empty());
     assert!(initial.products.iter().any(|p| p.name == "FDX"));
     store
-        .add_product("TEST.cfd", "Test contract", "EUR", "EUREX")
+        .add_product("TEST.cfd", "Test contract", "EUR", "EUREX", 1.0, 1.0)
         .unwrap();
     store
         .add_trade(NewTrade {

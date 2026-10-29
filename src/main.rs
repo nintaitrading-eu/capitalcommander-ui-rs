@@ -634,13 +634,15 @@ fn main() -> Result<(), slint::PlatformError>
     let weak = window.as_weak();
     let model = journal.clone();
     let database = store.clone();
-    window.on_save_product(move |name, description, currency, market| {
+    window.on_save_product(move |name, description, currency, market, tick, tick_value| {
         if let Some(window) = weak.upgrade()
         {
             let result = (|| -> Result<(), String> {
+                let tick = tick.trim().parse::<f64>().map_err(|_| "Tick must be a number")?;
+                let tick_value = tick_value.trim().parse::<f64>().map_err(|_| "Tick value must be a number")?;
                 database
                     .borrow_mut()
-                    .add_product(&name, &description, &currency, &market)?;
+                    .add_product(&name, &description, &currency, &market, tick, tick_value)?;
                 *model.borrow_mut() = database.borrow().load()?;
                 Ok(())
             })();
@@ -747,12 +749,16 @@ fn set_products(window: &AppWindow, journal: &Journal)
             description: product.description.clone().into(),
             currency: product.currency.clone().into(),
             market: product.market.clone().into(),
+            tick: product.tick.to_string().into(),
+            tick_value: product.tick_value.to_string().into(),
         })
         .collect();
     let table_rows = details.iter().map(|product| table_row(vec![
         product.name.clone(),
         product.currency.clone(),
         product.market.clone(),
+        product.tick.clone(),
+        product.tick_value.clone(),
         product.description.clone(),
     ])).collect();
     window.set_product_table_rows(table_rows_model(table_rows));

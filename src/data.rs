@@ -10,6 +10,8 @@ pub struct Product
     pub description: String,
     pub currency: String,
     pub market: String,
+    pub tick: f64,
+    pub tick_value: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -193,7 +195,7 @@ impl Store
         let mut statement = self
             .connection
             .prepare(
-                "SELECT p.name, p.description, c.code, m.code FROM t_product p
+                "SELECT p.name, p.description, c.code, m.code, p.tick, p.tick_value FROM t_product p
              JOIN t_currency c ON c.currency_id = p.currency_id
              JOIN t_market m ON m.market_id = p.market_id
              WHERE p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE",
@@ -206,6 +208,8 @@ impl Store
                     description: row.get(1)?,
                     currency: row.get(2)?,
                     market: row.get(3)?,
+                    tick: row.get(4)?,
+                    tick_value: row.get(5)?,
                 })
             })
             .map_err(db_error)?;
@@ -381,12 +385,22 @@ impl Store
         description: &str,
         currency: &str,
         market: &str,
+        tick: f64,
+        tick_value: f64,
     ) -> Result<(), String>
     {
         let name = name.trim();
         if name.is_empty()
         {
             return Err("Product name is required".into());
+        }
+        if !tick.is_finite() || tick <= 0.0
+        {
+            return Err("Tick must be a positive finite number".into());
+        }
+        if !tick_value.is_finite() || tick_value <= 0.0
+        {
+            return Err("Tick value must be a positive finite number".into());
         }
         let currency_id: i64 = self
             .connection
@@ -411,8 +425,8 @@ impl Store
         self.connection
             .execute(
                 "INSERT INTO t_product(name, description, product_type_id, currency_id, market_id, tick, tick_value)
-             VALUES (?1, ?2, 1, ?3, ?4, 1, 1)",
-                params![name, description.trim(), currency_id, market_id],
+             VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6)",
+                params![name, description.trim(), currency_id, market_id, tick, tick_value],
             )
             .map_err(db_error)?;
         Ok(())
