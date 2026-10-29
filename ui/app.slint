@@ -212,11 +212,11 @@ export component AppWindow inherits Window
         {
             title: "Trade";
             MenuItem { title: "Journal"; activated => { root.page = "Journal"; } }
-            MenuItem { title: "Expectancy"; activated => { root.page = "Expectancy"; } }
         }
         Menu
         {
             title: "Report";
+            MenuItem { title: "Expectancy"; activated => { root.page = "Expectancy"; } }
             MenuItem { title: "Trade costs"; activated => { root.page = "Trade costs"; } }
         }
         Menu
