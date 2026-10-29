@@ -467,11 +467,15 @@ impl Store
             )
             .map_err(db_error)?;
         let calculated_id = transaction.last_insert_rowid();
+        transaction
+            .execute("INSERT INTO t_trade_review DEFAULT VALUES", [])
+            .map_err(db_error)?;
+        let review_id = transaction.last_insert_rowid();
         transaction.execute(
-            "INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, pool_id, date_buy, date_sell,
+            "INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, trade_review_id, pool_id, date_buy, date_sell,
                                  is_long, shares_buy, shares_sell, price_buy, price_sell, exchange_rate_buy, exchange_rate_sell)
-                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![calculated_id, product_id, cost_id, pool_id, trade.date_buy, trade.date_sell,
+                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![calculated_id, product_id, cost_id, review_id, pool_id, trade.date_buy, trade.date_sell,
                     trade.is_long, trade.shares_buy, if profit_loss.is_some() { trade.shares_sell } else { 0 },
                     trade.price_buy, trade.price_sell, trade.exchange_rate_buy, trade.exchange_rate_sell]
         ).map_err(db_error)?;

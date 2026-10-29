@@ -163,6 +163,12 @@ fn saves_entered_stoploss_and_derived_risk()
     assert_eq!(trade.currency, "EUR");
     assert_eq!(trade.target_minimum, 13.0);
     assert_eq!(trade.target_preferred, Some(14.75));
+    let review: (i64, Option<String>) = store.connection.query_row(
+        "SELECT t.trade_review_id, r.review FROM t_trade t JOIN t_trade_review r ON r.trade_review_id = t.trade_review_id",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap();
+    assert_eq!(review, (1, None));
     let saved: (f64, Option<f64>) = store.connection.query_row(
         "SELECT target_minimum, target_preferred FROM t_trade_calculated",
         [],

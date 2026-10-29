@@ -94,11 +94,20 @@ CREATE TABLE t_trade_calculated (
     date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+CREATE TABLE t_trade_review (
+    trade_review_id INTEGER PRIMARY KEY,
+    review TEXT NULL,
+    is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
+    date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
 CREATE TABLE t_trade (
     trade_id INTEGER PRIMARY KEY,
     trade_calculated_id INTEGER NOT NULL UNIQUE REFERENCES t_trade_calculated(trade_calculated_id),
     product_id INTEGER NOT NULL REFERENCES t_product(product_id),
     trade_cost_id INTEGER NOT NULL UNIQUE REFERENCES t_trade_cost(trade_cost_id),
+    trade_review_id INTEGER NOT NULL UNIQUE REFERENCES t_trade_review(trade_review_id),
     pool_id INTEGER NOT NULL UNIQUE REFERENCES t_pool(pool_id),
     date_buy TEXT NOT NULL,
     date_sell TEXT,
