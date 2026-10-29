@@ -691,40 +691,44 @@ export component AppWindow inherits Window
                         }
                     }
                 }
-                Button
+                HorizontalBox
                 {
-                    text: root.editing-trade-id == 0 ? "Log trade" : "Save changes";
-                    height: 24px;
-                    primary: true;
-                    clicked =>
+                    Rectangle { horizontal-stretch: 1; }
+                    Button
                     {
-                        if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
-                            date-buy.value, date-sell.value, shares-buy.text, shares-sell.text, price-buy.text,
-                            price-sell.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, cost-other.text,
-                            risk-percent.text, stoploss.text, root.trade-pool)
+                        text: root.editing-trade-id == 0 ? "Log trade" : "Save changes";
+                        height: 24px;
+                        primary: true;
+                        clicked =>
                         {
-                            root.editing-trade-id = 0;
-                            root.selected-trade-row = -1;
-                            trade-side.current-value = "Long";
-                            date-buy.value = "";
-                            date-sell.value = "";
-                            shares-buy.text = "1";
-                            shares-sell.text = "0";
-                            price-buy.text = "0";
-                            price-sell.text = "0";
-                            exchange-rate-buy.text = "1";
-                            exchange-rate-sell.text = "1";
-                            commission-buy.text = "0";
-                            tax-buy.text = "0";
-                            commission-sell.text = "0";
-                            tax-sell.text = "0";
-                            cost-other.text = "0";
-                            risk-percent.text = "";
-                            stoploss.text = "";
-                            root.risk-entry-mode = "";
-                            root.trade-pool = root.current-pool-exact;
+                            if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
+                                date-buy.value, date-sell.value, shares-buy.text, shares-sell.text, price-buy.text,
+                                price-sell.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, cost-other.text,
+                                risk-percent.text, stoploss.text, root.trade-pool)
+                            {
+                                root.editing-trade-id = 0;
+                                root.selected-trade-row = -1;
+                                trade-side.current-value = "Long";
+                                date-buy.value = "";
+                                date-sell.value = "";
+                                shares-buy.text = "1";
+                                shares-sell.text = "0";
+                                price-buy.text = "0";
+                                price-sell.text = "0";
+                                exchange-rate-buy.text = "1";
+                                exchange-rate-sell.text = "1";
+                                commission-buy.text = "0";
+                                tax-buy.text = "0";
+                                commission-sell.text = "0";
+                                tax-sell.text = "0";
+                                cost-other.text = "0";
+                                risk-percent.text = "";
+                                stoploss.text = "";
+                                root.risk-entry-mode = "";
+                                root.trade-pool = root.current-pool-exact;
+                            }
                         }
-                    } 
+                    }
                 }
 
 /*******************************************************************************
@@ -907,14 +911,18 @@ export component AppWindow inherits Window
                 }
                 Rectangle { horizontal-stretch: 1; }
             }
-            Button
+            HorizontalBox
             {
-                text: "Add product";
-                height: 24px;
-                primary: true;
-                clicked =>
+                Rectangle { horizontal-stretch: 1; }
+                Button
                 {
-                    root.save-product(product-name.text, product-description.text, product-currency.current-value, product-market.current-value, product-tick.text, product-tick-value.text);
+                    text: "Add product";
+                    height: 24px;
+                    primary: true;
+                    clicked =>
+                    {
+                        root.save-product(product-name.text, product-description.text, product-currency.current-value, product-market.current-value, product-tick.text, product-tick-value.text);
+                    }
                 }
             }
             Text { text: "Product catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
@@ -960,14 +968,18 @@ export component AppWindow inherits Window
                     market-country := LineEdit { placeholder-text: "Country"; }
                 }
             }
-            Button
+            HorizontalBox
             {
-                text: "Add market";
-                height: 24px;
-                primary: true;
-                clicked =>
+                Rectangle { horizontal-stretch: 1; }
+                Button
                 {
-                    root.save-market(market-code.text, market-name.text, market-country.text);
+                    text: "Add market";
+                    height: 24px;
+                    primary: true;
+                    clicked =>
+                    {
+                        root.save-market(market-code.text, market-name.text, market-country.text);
+                    }
                 }
             }
             Text { text: "Market catalog"; color: root.primary; font-size: 17px; font-weight: 600; }
@@ -1010,23 +1022,27 @@ export component AppWindow inherits Window
                 spacing: 4px;
                 VerticalBox { Text { text: "Description"; color: root.secondary; } LineEdit { text <=> root.parameter-description; placeholder-text: "Description"; } }
             }
-            Button
+            HorizontalBox
             {
-                enabled: root.editing-parameter-id != 0;
-                text: "Save changes";
-                height: 24px;
-                primary: true;
-                clicked =>
+                Rectangle { horizontal-stretch: 1; }
+                Button
                 {
-                    if root.save-parameter(root.editing-parameter-id, root.parameter-name, root.parameter-value, root.parameter-default, root.parameter-description, root.parameter-datatype)
+                    enabled: root.editing-parameter-id != 0;
+                    text: "Save changes";
+                    height: 24px;
+                    primary: true;
+                    clicked =>
                     {
-                        root.editing-parameter-id = 0;
-                        root.selected-parameter-row = -1;
-                        root.parameter-name = "";
-                        root.parameter-value = "";
-                        root.parameter-default = "";
-                        root.parameter-description = "";
-                        root.parameter-datatype = "string";
+                        if root.save-parameter(root.editing-parameter-id, root.parameter-name, root.parameter-value, root.parameter-default, root.parameter-description, root.parameter-datatype)
+                        {
+                            root.editing-parameter-id = 0;
+                            root.selected-parameter-row = -1;
+                            root.parameter-name = "";
+                            root.parameter-value = "";
+                            root.parameter-default = "";
+                            root.parameter-description = "";
+                            root.parameter-datatype = "string";
+                        }
                     }
                 }
             }
