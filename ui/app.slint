@@ -246,14 +246,14 @@ export component AppWindow inherits Window
             spacing: 4px;
             Text { text: root.page; color: root.accent; font-size: 28px; font-weight: 700; }
             Rectangle { horizontal-stretch: 1; }
-            if root.page != "Trade costs" && root.page != "Journal": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
+            if root.page != "Trade costs" && root.page != "Journal" && root.page != "Review": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
             if root.page == "Journal": Text { width: 170px; font-size: 24px; vertical-alignment: center; color: root.aqua; text: root.current-pool + " " + root.base-currency; }
-            if root.page == "Journal": Text { text: "Buy date"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Journal": DateField { value <=> root.journal-draft-from; }
-            if root.page == "Journal": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Journal": DateField { value <=> root.journal-draft-to; }
-            if root.page == "Journal": Button { text: "Apply"; clicked => { root.filter-journal(root.journal-draft-from, root.journal-draft-to); } }
-            if root.page == "Journal": Button
+            if root.page == "Journal" || root.page == "Review": Text { text: "Buy date"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Journal" || root.page == "Review": DateField { value <=> root.journal-draft-from; }
+            if root.page == "Journal" || root.page == "Review": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Journal" || root.page == "Review": DateField { value <=> root.journal-draft-to; }
+            if root.page == "Journal" || root.page == "Review": Button { text: "Apply"; clicked => { root.filter-journal(root.journal-draft-from, root.journal-draft-to); } }
+            if root.page == "Journal" || root.page == "Review": Button
             {
                 text: "Clear"; clicked =>
                 {

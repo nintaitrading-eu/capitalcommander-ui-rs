@@ -130,7 +130,9 @@ fn main() -> Result<(), slint::PlatformError>
                     window.set_journal_date_from(from);
                     window.set_journal_date_to(to);
                     refresh(&window, &model.borrow());
-                    window.set_status("Trade journal updated".into());
+                    window.set_status(
+                        if window.get_page() == "Review" { "Trade review updated" } else { "Trade journal updated" }.into()
+                    );
                     true
                 }
                 Err(error) =>
