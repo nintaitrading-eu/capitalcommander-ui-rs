@@ -14,6 +14,8 @@ The SQLite migration in `migrations/0001_initial.sql` adapts the API's Diesel ta
 
 The product selector filters trades and statistics by product name. In the journal, enter the buy details and leave the sell date empty to save an open trade. Click its journal row later to load it into the same form, enter the sell date, price, commission, tax, and other costs, then choose **Save changes**. **New trade** clears the selection and form. Editing keeps the trade ID.
 
+**Trade → Review** shows the journal results. Select any trade, write its review in the text area above the table, then choose **Save review**. The text is stored in that trade's linked `t_trade_review` record.
+
 **Report → Trade costs** shows buy and sell commissions, taxes, other costs, and their totals in EUR for each trade. On the Journal and Trade costs pages, choose either end of the inclusive buy date range from its calendar, then select **Apply**. Use the × beside a date to leave that end open, or **Clear** to restore all trades. Open trades are included.
 
 Enter buy and sell exchange rates as EUR per unit of the product currency (use 1 for EUR). The app stores the original prices and rates, then converts each price to EUR for P/L, R, and pool calculations. Enter initial risk, commission, tax, and other costs in EUR.

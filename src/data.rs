@@ -35,6 +35,7 @@ pub struct Parameter
 pub struct Trade
 {
     pub id: i64,
+    pub review: String,
     pub product: String,
     pub currency: String,
     pub date_buy: String,
@@ -224,11 +225,12 @@ impl Store
                     calc.profit_loss_total, calc.profit_loss_total_converted,
                     t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual, calc.risk_actual_converted,
                     calc.risk_percent_initial, calc.risk_percent_actual, pool.pool_value, pool.pool_value_converted, calc.stoploss_initial, calc.stoploss_actual,
-                    c.code, calc.target_minimum, calc.target_preferred
+                    c.code, calc.target_minimum, calc.target_preferred, COALESCE(review.review, '')
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
              JOIN t_currency c ON c.currency_id = p.currency_id
              JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
              JOIN t_trade_calculated calc ON calc.trade_calculated_id = t.trade_calculated_id
+             JOIN t_trade_review review ON review.trade_review_id = t.trade_review_id
              JOIN t_pool pool ON pool.pool_id = t.pool_id
              WHERE t.is_deleted = 0 ORDER BY t.trade_id",
             )
@@ -237,6 +239,7 @@ impl Store
             .query_map([], |row| {
                 Ok(Trade {
                     id: row.get(0)?,
+                    review: row.get(33)?,
                     product: row.get(1)?,
                     currency: row.get(30)?,
                     date_buy: row.get(2)?,
@@ -284,6 +287,21 @@ impl Store
             trades,
             pool_value_converted,
         })
+    }
+
+    pub fn save_trade_review(&mut self, trade_id: i64, review: &str) -> Result<(), String>
+    {
+        let changed = self.connection.execute(
+            "UPDATE t_trade_review SET review = ?1, date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE trade_review_id = (SELECT trade_review_id FROM t_trade WHERE trade_id = ?2 AND is_deleted = 0)
+               AND is_deleted = 0",
+            params![review, trade_id],
+        ).map_err(db_error)?;
+        if changed == 0
+        {
+            return Err(format!("Trade #{trade_id} does not exist"));
+        }
+        Ok(())
     }
 
     pub fn save_parameter(&mut self, id: i64, name: &str, value: &str, value_default: &str, description: &str, datatype: &str) -> Result<(), String>

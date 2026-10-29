@@ -146,6 +146,41 @@ fn main() -> Result<(), slint::PlatformError>
         }
     });
 
+    /* Event: Save trade review */
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_save_trade_review(move |trade_id, review|
+    {
+        if let Some(window) = weak.upgrade()
+        {
+            let result = (|| -> Result<(), String> {
+                database.borrow_mut().save_trade_review(trade_id as i64, &review)?;
+                *model.borrow_mut() = database.borrow().load()?;
+                Ok(())
+            })();
+            match result
+            {
+                Ok(()) =>
+                {
+                    refresh(&window, &model.borrow());
+                    window.set_status(format!("Review saved for trade #{trade_id}").into());
+                    true
+                }
+                Err(error) =>
+                {
+                    window.set_status(error.into());
+                    false
+                }
+            }
+        }
+        else
+        {
+            false
+        }
+    });
+
     /* Event: Filter trade costs */
 
     let weak = window.as_weak();
@@ -892,6 +927,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .rev()
         .map(|trade| TradeRow {
             id: trade.id as i32,
+            review: trade.review.clone().into(),
             is_closed: trade.profit_loss.is_some(),
             product: trade.product.clone().into(),
             currency: match trade.currency.as_str()
@@ -1012,9 +1048,20 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .position(|trade| trade.id == editing_trade_id && !trade.is_closed)
         .map(|index| index as i32)
         .unwrap_or(-1);
+    let selected_review_id = window.get_selected_review_trade_id();
+    let selected_review_row = rows.iter()
+        .position(|trade| trade.id == selected_review_id)
+        .map(|index| index as i32)
+        .unwrap_or(-1);
     window.set_trade_table_rows(table_rows_model(table_rows));
     window.set_trades(ModelRc::from(Rc::new(VecModel::from(rows))));
     window.set_selected_trade_row(selected_row);
+    window.set_selected_review_row(selected_review_row);
+    if selected_review_row < 0
+    {
+        window.set_selected_review_trade_id(0);
+        window.set_review_text("".into());
+    }
     refresh_trade_costs(
         window,
         journal,

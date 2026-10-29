@@ -1,4 +1,4 @@
-import { VerticalBox, HorizontalBox, Button, LineEdit, ComboBox, StandardTableView, Palette, DatePickerPopup } from "std-widgets.slint";
+import { VerticalBox, HorizontalBox, Button, LineEdit, TextEdit, ComboBox, StandardTableView, Palette, DatePickerPopup } from "std-widgets.slint";
 
 component DateField inherits HorizontalBox
 {
@@ -36,6 +36,7 @@ component DateField inherits HorizontalBox
 export struct TradeRow
 {
     id: int,
+    review: string,
     is-closed: bool,
     product: string,
     currency: string,
@@ -163,6 +164,9 @@ export component AppWindow inherits Window
     in-out property <[[StandardListViewItem]]> trade-table-rows;
     in-out property <int> editing-trade-id: 0;
     in-out property <int> selected-trade-row: -1;
+    in-out property <int> selected-review-trade-id: 0;
+    in-out property <int> selected-review-row: -1;
+    in-out property <string> review-text: "";
     private property <string> trade-pool: root.current-pool-exact;
     private property <string> risk-entry-mode: "";
     in-out property <string> trade-count: "0";
@@ -184,6 +188,7 @@ export component AppWindow inherits Window
     in-out property <string> costs-total: "0.00";
 
     callback filter-journal(string, string) -> bool;
+    callback save-trade-review(int, string) -> bool;
     callback filter-trade-costs(string, string) -> bool;
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     pure callback calculate-risk-initial(string, string, string, string, string, string, string, string, string, string) -> string;
@@ -212,6 +217,7 @@ export component AppWindow inherits Window
         {
             title: "Trade";
             MenuItem { title: "Journal"; activated => { root.page = "Journal"; } }
+            MenuItem { title: "Review"; activated => { root.page = "Review"; } }
         }
         Menu
         {
@@ -371,6 +377,79 @@ export component AppWindow inherits Window
                     rows: root.trade-cost-table-rows;
                 }
             }
+
+        if root.page == "Review": VerticalBox
+        {
+            spacing: 8px;
+            Text
+            {
+                text: root.selected-review-trade-id == 0
+                    ? "Select a trade in the table to write its review."
+                    : "Review for trade #" + root.selected-review-trade-id;
+                color: root.secondary;
+                font-size: 17px;
+            }
+            TextEdit
+            {
+                height: 190px;
+                enabled: root.selected-review-trade-id != 0;
+                text <=> root.review-text;
+            }
+            HorizontalBox
+            {
+                Rectangle { horizontal-stretch: 1; }
+                Button
+                {
+                    text: "Save review";
+                    enabled: root.selected-review-trade-id != 0;
+                    clicked => { root.save-trade-review(root.selected-review-trade-id, root.review-text); }
+                }
+            }
+            Text { text: "Trade journal results"; color: root.primary; font-size: 17px; font-weight: 600; }
+            Rectangle { height: 1px; background: root.divider; }
+            StandardTableView
+            {
+                vertical-stretch: 1;
+                columns: [
+                    { title: "ID", width: 55px },
+                    { title: "PRODUCT", width: 120px },
+                    { title: "SIDE", width: 75px },
+                    { title: "BUY → SELL", width: 205px },
+                    { title: "CURR", width: 65px },
+                    { title: "QTY (b)", width: 90px },
+                    { title: "QTY (s)", width: 90px },
+                    { title: "TAX (b)", width: 90px },
+                    { title: "TAX (s)", width: 90px },
+                    { title: "COMM (b)", width: 100px },
+                    { title: "COMM (s)", width: 100px },
+                    { title: "EX (b)", width: 90px },
+                    { title: "EX (s)", width: 90px },
+                    { title: "STOPLOSS (init)", width: 140px },
+                    { title: "TARGET (min)", width: 130px },
+                    { title: "TARGET (pref)", width: 140px },
+                    { title: "RISK (init)", width: 115px },
+                    { title: "RISK (actual)", width: 125px },
+                    { title: "P/L", width: 105px },
+                    { title: "P/L (tot)", width: 105px },
+                    { title: "R", width: 85px },
+                ];
+                rows: root.trade-table-rows;
+                current-row: root.selected-review-row;
+                current-row-changed(row) =>
+                {
+                    if row < 0 || row >= root.trades.length
+                    {
+                        root.selected-review-row = -1;
+                        root.selected-review-trade-id = 0;
+                        root.review-text = "";
+                        return;
+                    }
+                    root.selected-review-row = row;
+                    root.selected-review-trade-id = root.trades[row].id;
+                    root.review-text = root.trades[row].review;
+                }
+            }
+        }
 
 /*******************************************************************************
  * Info boxes expectancy.

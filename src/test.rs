@@ -53,6 +53,7 @@ fn valid_r_multiple_requires_positive_risk()
 {
     let mut trade = Trade {
         id: 1,
+        review: String::new(),
         product: "A".into(),
         currency: "EUR".into(),
         date_buy: "2026-01-01".into(),
@@ -169,6 +170,9 @@ fn saves_entered_stoploss_and_derived_risk()
         |row| Ok((row.get(0)?, row.get(1)?)),
     ).unwrap();
     assert_eq!(review, (1, None));
+    store.save_trade_review(trade.id, "Entry followed the plan.\nExit was early.").unwrap();
+    assert_eq!(store.load().unwrap().trades[0].review, "Entry followed the plan.\nExit was early.");
+    assert!(store.save_trade_review(999, "Unknown trade").is_err());
     let saved: (f64, Option<f64>) = store.connection.query_row(
         "SELECT target_minimum, target_preferred FROM t_trade_calculated",
         [],
