@@ -162,6 +162,7 @@ export component AppWindow inherits Window
     private property <string> parameter-datatype: "string";
     in-out property <[TradeRow]> trades;
     in-out property <[[StandardListViewItem]]> trade-table-rows;
+    in-out property <[[StandardListViewItem]]> review-table-rows;
     in-out property <int> editing-trade-id: 0;
     in-out property <int> selected-trade-row: -1;
     in-out property <int> selected-review-trade-id: 0;
@@ -401,6 +402,7 @@ export component AppWindow inherits Window
                 Button
                 {
                     text: "Save review";
+                    primary: true;
                     enabled: root.selected-review-trade-id != 0;
                     clicked => { root.save-trade-review(root.selected-review-trade-id, root.review-text); }
                 }
@@ -412,6 +414,7 @@ export component AppWindow inherits Window
                 vertical-stretch: 1;
                 columns: [
                     { title: "ID", width: 55px },
+                    { title: "REVIEW", width: 360px },
                     { title: "PRODUCT", width: 120px },
                     { title: "SIDE", width: 75px },
                     { title: "BUY → SELL", width: 205px },
@@ -433,7 +436,7 @@ export component AppWindow inherits Window
                     { title: "P/L (tot)", width: 105px },
                     { title: "R", width: 85px },
                 ];
-                rows: root.trade-table-rows;
+                rows: root.review-table-rows;
                 current-row: root.selected-review-row;
                 current-row-changed(row) =>
                 {

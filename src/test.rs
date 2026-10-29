@@ -14,6 +14,16 @@ fn table_reals_use_two_decimal_places_and_dot_separator()
 }
 
 #[test]
+fn review_preview_truncates_only_after_50_characters()
+{
+    let review = format!("{}étail", "a".repeat(49));
+    assert_eq!(crate::review_preview(&review), format!("{}...", "a".repeat(47)));
+    let exactly_50 = format!("{}é", "a".repeat(49));
+    assert_eq!(crate::review_preview(&exactly_50), exactly_50);
+    assert_eq!(crate::review_preview("Short review"), "Short review");
+}
+
+#[test]
 fn min_target_uses_entry_side_and_hides_incomplete_input()
 {
     let long = crate::min_target(["100", "10", "5", "10"], true).unwrap();

@@ -847,6 +847,18 @@ fn format_table_signed_real(value: f64) -> String
     format!("{value:+.2}")
 }
 
+fn review_preview(review: &str) -> String
+{
+    if review.chars().count() > 50
+    {
+        format!("{}...", review.chars().take(47).collect::<String>())
+    }
+    else
+    {
+        review.to_owned()
+    }
+}
+
 fn table_rows_model(rows: Vec<ModelRc<StandardListViewItem>>) -> ModelRc<ModelRc<StandardListViewItem>>
 {
     ModelRc::from(Rc::new(VecModel::from(rows)))
@@ -1022,7 +1034,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .into(),
         })
         .collect();
-    let table_rows = rows.iter().map(|trade| table_row(vec![
+    let row_values: Vec<Vec<SharedString>> = rows.iter().map(|trade| vec![
         trade.id.to_string().into(),
         trade.product.clone(),
         trade.side.clone(),
@@ -1044,7 +1056,12 @@ fn refresh(window: &AppWindow, journal: &Journal)
         trade.profit.clone(),
         trade.profit_total.clone(),
         trade.r.clone(),
-    ])).collect();
+    ]).collect();
+    let table_rows = row_values.iter().cloned().map(table_row).collect();
+    let review_table_rows = rows.iter().zip(row_values).map(|(trade, mut values)| {
+        values.insert(1, review_preview(&trade.review).into());
+        table_row(values)
+    }).collect();
     let editing_trade_id = window.get_editing_trade_id();
     let selected_row = rows.iter()
         .position(|trade| trade.id == editing_trade_id && !trade.is_closed)
@@ -1056,6 +1073,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .map(|index| index as i32)
         .unwrap_or(-1);
     window.set_trade_table_rows(table_rows_model(table_rows));
+    window.set_review_table_rows(table_rows_model(review_table_rows));
     window.set_trades(ModelRc::from(Rc::new(VecModel::from(rows))));
     window.set_selected_trade_row(selected_row);
     window.set_selected_review_row(selected_review_row);
