@@ -969,6 +969,13 @@ fn refresh(window: &AppWindow, journal: &Journal)
             id: trade.id as i32,
             is_closed: trade.profit_loss.is_some(),
             product: trade.product.clone().into(),
+            currency: match trade.currency.as_str()
+            {
+                "EUR" => "€".into(),
+                "USD" => "$".into(),
+                "GBP" => "£".into(),
+                code => code.into(),
+            },
             side: (if trade.is_long { "Long" } else { "Short" }).into(),
             dates: format!(
                 "{} → {}",
@@ -1018,6 +1025,12 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
+            target_minimum: format_table_real(trade.target_minimum).into(),
+            target_preferred: trade
+                .target_preferred
+                .map(format_table_real)
+                .unwrap_or_default()
+                .into(),
             trade_pool: trade
                 .trade_pool
                 .map(|value| value.to_string())
@@ -1051,8 +1064,18 @@ fn refresh(window: &AppWindow, journal: &Journal)
         trade.product.clone(),
         trade.side.clone(),
         trade.dates.clone(),
+        trade.currency.clone(),
         trade.shares_buy.clone(),
         trade.shares_sell.clone(),
+        trade.tax_buy.clone(),
+        trade.tax_sell.clone(),
+        trade.commission_buy.clone(),
+        trade.commission_sell.clone(),
+        trade.exchange_rate_buy.clone(),
+        trade.exchange_rate_sell.clone(),
+        trade.stoploss_initial.clone(),
+        trade.target_minimum.clone(),
+        trade.target_preferred.clone(),
         trade.risk_initial.clone(),
         trade.risk_actual.clone(),
         trade.profit.clone(),

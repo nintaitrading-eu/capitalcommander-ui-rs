@@ -54,6 +54,7 @@ fn valid_r_multiple_requires_positive_risk()
     let mut trade = Trade {
         id: 1,
         product: "A".into(),
+        currency: "EUR".into(),
         date_buy: "2026-01-01".into(),
         date_sell: "2026-01-02".into(),
         is_long: true,
@@ -78,6 +79,8 @@ fn valid_r_multiple_requires_positive_risk()
         trade_pool_converted: None,
         stoploss_initial: None,
         stoploss_actual: None,
+        target_minimum: 0.0,
+        target_preferred: None,
         profit_loss: Some(-5.0),
         profit_loss_converted: Some(-5.0),
         profit_loss_total: None,
@@ -131,7 +134,7 @@ fn saves_entered_stoploss_and_derived_risk()
     );
     store
         .add_trade(NewTrade {
-            product: ".MGOLD.cfd".into(),
+            product: "FDX".into(),
             date_buy: "2026-09-28".into(),
             date_sell: None,
             is_long: true,
@@ -157,6 +160,49 @@ fn saves_entered_stoploss_and_derived_risk()
     assert_eq!(trade.stoploss_initial, Some(stoploss));
     assert_eq!(trade.risk_initial, 3.5);
     assert_eq!(trade.risk_percent_initial, Some(risk_percent));
+    assert_eq!(trade.currency, "EUR");
+    assert_eq!(trade.target_minimum, 13.0);
+    assert_eq!(trade.target_preferred, Some(14.75));
+    let saved: (f64, Option<f64>) = store.connection.query_row(
+        "SELECT target_minimum, target_preferred FROM t_trade_calculated",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap();
+    assert_eq!(saved, (trade.target_minimum, trade.target_preferred));
+}
+
+#[test]
+fn updates_saved_targets_with_trade_inputs()
+{
+    let mut store = Store::open(Path::new(":memory:")).unwrap();
+    let trade = NewTrade {
+        product: "FDX".into(),
+        date_buy: "2026-09-28".into(),
+        date_sell: None,
+        is_long: true,
+        shares_buy: 2,
+        shares_sell: 0,
+        price_buy: 12.0,
+        price_sell: 0.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
+        commission_buy: 1.0,
+        tax_buy: 0.0,
+        commission_sell: 1.0,
+        tax_sell: 0.0,
+        cost_other: 0.0,
+        risk_initial: 0.0,
+        risk_percent_initial: Some(0.0),
+        risk_percent_actual: None,
+        trade_pool: None,
+        stoploss_initial: Some(11.25),
+    };
+    store.add_trade(trade.clone()).unwrap();
+    let id = store.load().unwrap().trades[0].id;
+    store.update_trade(id, NewTrade { price_buy: 14.0, stoploss_initial: Some(13.25), ..trade }).unwrap();
+    let updated = &store.load().unwrap().trades[0];
+    assert_eq!(updated.target_minimum, 15.0);
+    assert_eq!(updated.target_preferred, Some(16.75));
 }
 
 #[test]

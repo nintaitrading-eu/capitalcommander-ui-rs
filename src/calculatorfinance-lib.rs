@@ -1,6 +1,7 @@
 use crate::data::{NewTrade, Trade};
 use libcalculatorfinance::{
     convert_from_orig,
+    calculate_close_at_breakeven, calculate_close_at_preferred,
     calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple,
     calculate_risk, calculate_risk_initial,
     calculate_stoploss, calculate_stoploss_initial, TradeType,
@@ -19,6 +20,8 @@ impl Trade
 pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_total: f64) -> Result<
     (
         Option<f64>,
+        Option<f64>,
+        f64,
         Option<f64>,
         f64,
         f64,
@@ -73,6 +76,35 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
     if !risk_initial.is_finite() || risk_initial < 0.0
     {
         return Err("Initial risk must be finite and nonnegative. Check the stoploss value.".into());
+    }
+    let (entry_buy_price, entry_buy_shares, entry_buy_tax, entry_buy_commission,
+         entry_sell_price, entry_sell_shares, entry_sell_tax, entry_sell_commission) = if trade.is_long
+    {
+        (trade.price_buy, trade.shares_buy, trade.tax_buy, trade.commission_buy,
+         0.0, 0, 0.0, 0.0)
+    }
+    else
+    {
+        (0.0, 0, 0.0, 0.0,
+         trade.price_sell, trade.shares_sell, trade.tax_sell, trade.commission_sell)
+    };
+    let target_minimum = calculate_close_at_breakeven(
+        entry_buy_price, entry_buy_shares, entry_buy_tax, entry_buy_commission,
+        entry_sell_price, entry_sell_shares, entry_sell_tax, entry_sell_commission,
+        trade_type(trade.is_long),
+    );
+    if !target_minimum.is_finite() || target_minimum < 0.0
+    {
+        return Err("Minimum target must be finite and nonnegative. Check the entry price and tax.".into());
+    }
+    let target_preferred = stoploss_initial.map(|_| calculate_close_at_preferred(
+        entry_buy_price, entry_buy_shares, entry_buy_tax, entry_buy_commission,
+        entry_sell_price, entry_sell_shares, entry_sell_tax, entry_sell_commission,
+        risk_initial, trade_type(trade.is_long),
+    ));
+    if target_preferred.is_some_and(|value| !value.is_finite() || value < 0.0)
+    {
+        return Err("Preferred target must be finite and nonnegative. Check the entry price and tax.".into());
     }
     let profit_loss = trade.date_sell.as_ref().map(|_| {
         calculate_profit_loss(
@@ -171,6 +203,8 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, financing_to
     Ok((
         stoploss_initial,
         stoploss_actual,
+        target_minimum,
+        target_preferred,
         risk_initial,
         risk_initial_converted,
         risk_actual,
