@@ -82,6 +82,8 @@ CREATE TABLE t_trade_calculated (
     risk_percent_actual REAL CHECK (risk_percent_actual >= 0),
     stoploss_initial REAL NOT NULL DEFAULT 0 CHECK (stoploss_initial >= 0),
     stoploss_actual REAL CHECK (stoploss_actual >= 0),
+    target_minimum REAL NOT NULL DEFAULT 0 CHECK (target_minimum >= 0),
+    target_preferred REAL CHECK (target_preferred >= 0),
     profit_loss REAL,
     profit_loss_converted REAL,
     profit_loss_total REAL,
