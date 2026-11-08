@@ -1,7 +1,7 @@
 use crate::calculatorfinance_lib::trade_type;
 use crate::data::{NewTrade, Store, Trade};
 use crate::check_date;
-use libcalculatorfinance::{calculate_risk_percentage_initial, calculate_stoploss_initial};
+use libcalculatorfinance::{calculate_risk_initial, calculate_risk_percentage_initial, calculate_stoploss_initial};
 use std::path::Path;
 
 #[test]
@@ -134,6 +134,32 @@ fn stoploss_follows_risk_input_for_both_trade_sides()
         calculate_stoploss_initial(12.0, 2, 0.0, 0.0, 12.0, 2, 0.0, 0.0, 1.0, 400.0, trade_type(false)),
         14.0
     );
+}
+
+#[test]
+fn open_short_preview_uses_sell_entry_without_buy_details()
+{
+    let (price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell) =
+        crate::initial_trade_inputs(
+            ["0", "", "", ""],
+            ["188.70", "383", "0", "0"],
+            false,
+        ).unwrap();
+    let stoploss = calculate_stoploss_initial(
+        price_buy, shares_buy, tax_buy, commission_buy,
+        price_sell, shares_sell, tax_sell, commission_sell,
+        1.0, 75000.0, trade_type(false),
+    );
+    let risk = calculate_risk_initial(
+        price_buy, shares_buy, tax_buy, commission_buy,
+        price_sell, shares_sell, tax_sell, commission_sell,
+        stoploss, trade_type(false),
+    );
+    assert!((stoploss - (188.70 + 750.0 / 383.0)).abs() < 1e-10);
+    assert!((risk - 750.0).abs() < 1e-8);
+    assert!(crate::initial_trade_inputs(
+        ["0", "", "", ""], ["188.70", "", "0", "0"], false,
+    ).is_none());
 }
 
 #[test]

@@ -54,6 +54,22 @@ fn target_inputs(inputs: [&str; 4]) -> Option<(f64, i32, f64, f64)>
     Some((price, shares, tax, commission))
 }
 
+fn initial_trade_inputs(
+    buy: [&str; 4], sell: [&str; 4], is_long: bool,
+) -> Option<(f64, i32, f64, f64, f64, i32, f64, f64)>
+{
+    if is_long
+    {
+        let (price, shares, tax, commission) = target_inputs(buy)?;
+        Some((price, shares, tax, commission, 0.0, 0, 0.0, 0.0))
+    }
+    else
+    {
+        let (price, shares, tax, commission) = target_inputs(sell)?;
+        Some((0.0, 0, 0.0, 0.0, price, shares, tax, commission))
+    }
+}
+
 fn target(inputs: [&str; 4], stoploss: &str, is_long: bool) -> Option<f64>
 {
     let (price, shares, tax, commission) = target_inputs(inputs)?;
@@ -284,39 +300,30 @@ fn main() -> Result<(), slint::PlatformError>
          tax_buy,
          tax_sell,
          side| {
-            let inputs: Option<Vec<f64>> = [
-                stoploss,
-                price_buy,
-                price_sell,
-                shares_buy,
-                shares_sell,
-                commission_buy,
-                commission_sell,
-                tax_buy,
-                tax_sell,
-            ]
-            .iter()
-            .map(|value| value.trim().parse::<f64>().ok())
-            .collect();
-            inputs
-                .and_then(|values| {
-                    Some(calculate_risk_initial(
-                        values[1],
-                        values[3] as i32,
-                        values[7],
-                        values[5],
-                        values[2],
-                        values[4] as i32,
-                        values[8],
-                        values[6],
-                        values[0],
+            initial_trade_inputs(
+                [&price_buy, &shares_buy, &tax_buy, &commission_buy],
+                [&price_sell, &shares_sell, &tax_sell, &commission_sell],
+                side == "Long",
+            )
+            .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)| {
+                let stoploss = stoploss.trim().parse::<f64>().ok()?;
+                Some(calculate_risk_initial(
+                        price_buy,
+                        shares_buy,
+                        tax_buy,
+                        commission_buy,
+                        price_sell,
+                        shares_sell,
+                        tax_sell,
+                        commission_sell,
+                        stoploss,
                         trade_type(side == "Long"),
-                    ))
-                })
-                .filter(|value| value.is_finite() && *value >= 0.0)
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "0.0".into())
-                .into()
+                ))
+            })
+            .filter(|value| value.is_finite() && *value >= 0.0)
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "0.0".into())
+            .into()
         },
     );
 
@@ -334,45 +341,36 @@ fn main() -> Result<(), slint::PlatformError>
          tax_buy,
          tax_sell,
          side| {
-            let inputs: Option<Vec<f64>> = [
-                pool,
-                risk_percent,
-                price_buy,
-                price_sell,
-                shares_buy,
-                shares_sell,
-                commission_buy,
-                commission_sell,
-                tax_buy,
-                tax_sell,
-            ]
-            .iter()
-            .map(|value| value.trim().parse::<f64>().ok())
-            .collect();
-            inputs
-                .and_then(|values| {
-                    if values[0] <= 0.0 || values[1] < 0.0
-                    {
-                        return None;
-                    }
-                    Some(calculate_stoploss_initial(
-                        values[2],
-                        values[4] as i32,
-                        values[8],
-                        values[6],
-                        values[3],
-                        values[5] as i32,
-                        values[9],
-                        values[7],
-                        values[1],
-                        values[0],
-                        trade_type(side == "Long"),
-                    ))
-                })
-                .filter(|value| value.is_finite() && *value >= 0.0)
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "0.0".into())
-                .into()
+            initial_trade_inputs(
+                [&price_buy, &shares_buy, &tax_buy, &commission_buy],
+                [&price_sell, &shares_sell, &tax_sell, &commission_sell],
+                side == "Long",
+            )
+            .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)| {
+                let pool = pool.trim().parse::<f64>().ok()?;
+                let risk_percent = risk_percent.trim().parse::<f64>().ok()?;
+                if pool <= 0.0 || risk_percent < 0.0
+                {
+                    return None;
+                }
+                Some(calculate_stoploss_initial(
+                    price_buy,
+                    shares_buy,
+                    tax_buy,
+                    commission_buy,
+                    price_sell,
+                    shares_sell,
+                    tax_sell,
+                    commission_sell,
+                    risk_percent,
+                    pool,
+                    trade_type(side == "Long"),
+                ))
+            })
+            .filter(|value| value.is_finite() && *value >= 0.0)
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "0.0".into())
+            .into()
         },
     );
 
@@ -390,39 +388,22 @@ fn main() -> Result<(), slint::PlatformError>
          stoploss,
          pool,
          side| {
-            let inputs: Option<Vec<f64>> = [
-                price_buy,
-                shares_buy,
-                tax_buy,
-                commission_buy,
-                price_sell,
-                shares_sell,
-                tax_sell,
-                commission_sell,
-                stoploss,
-                pool,
-            ]
-            .iter()
-            .map(|value| value.trim().parse::<f64>().ok())
-            .collect();
-            inputs
-                .and_then(|values| {
-                    if values[9] <= 0.0
+            initial_trade_inputs(
+                [&price_buy, &shares_buy, &tax_buy, &commission_buy],
+                [&price_sell, &shares_sell, &tax_sell, &commission_sell],
+                side == "Long",
+            )
+                .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)| {
+                    let stoploss = stoploss.trim().parse::<f64>().ok()?;
+                    let pool = pool.trim().parse::<f64>().ok()?;
+                    if pool <= 0.0
                     {
                         return None;
                     }
                     Some(calculate_risk_percentage_initial(
-                        values[0],
-                        values[1] as i32,
-                        values[2],
-                        values[3],
-                        values[4],
-                        values[5] as i32,
-                        values[6],
-                        values[7],
-                        values[8],
-                        values[9],
-                        trade_type(side == "Long"),
+                        price_buy, shares_buy, tax_buy, commission_buy,
+                        price_sell, shares_sell, tax_sell, commission_sell,
+                        stoploss, pool, trade_type(side == "Long"),
                     ))
                 })
                 .filter(|value| value.is_finite() && *value >= 0.0)
