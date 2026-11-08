@@ -40,19 +40,19 @@ pub struct Trade
     pub review: String,
     pub product: String,
     pub currency: String,
-    pub date_buy: String,
-    pub date_sell: String,
+    pub date_buy: Option<String>,
+    pub date_sell: Option<String>,
     pub is_long: bool,
-    pub shares_buy: i32,
-    pub shares_sell: i32,
+    pub shares_buy: Option<i32>,
+    pub shares_sell: Option<i32>,
     pub price_buy: f64,
     pub price_sell: f64,
     pub exchange_rate_buy: f64,
     pub exchange_rate_sell: f64,
-    pub commission_buy: f64,
-    pub tax_buy: f64,
-    pub commission_sell: f64,
-    pub tax_sell: f64,
+    pub commission_buy: Option<f64>,
+    pub tax_buy: Option<f64>,
+    pub commission_sell: Option<f64>,
+    pub tax_sell: Option<f64>,
     pub cost_other: f64,
     pub risk_initial: f64,
     pub risk_initial_converted: f64,
@@ -76,19 +76,19 @@ pub struct Trade
 pub struct NewTrade
 {
     pub product: String,
-    pub date_buy: String,
+    pub date_buy: Option<String>,
     pub date_sell: Option<String>,
     pub is_long: bool,
-    pub shares_buy: i32,
-    pub shares_sell: i32,
+    pub shares_buy: Option<i32>,
+    pub shares_sell: Option<i32>,
     pub price_buy: f64,
     pub price_sell: f64,
     pub exchange_rate_buy: f64,
     pub exchange_rate_sell: f64,
-    pub commission_buy: f64,
-    pub tax_buy: f64,
-    pub commission_sell: f64,
-    pub tax_sell: f64,
+    pub commission_buy: Option<f64>,
+    pub tax_buy: Option<f64>,
+    pub commission_sell: Option<f64>,
+    pub tax_sell: Option<f64>,
     pub cost_other: f64,
     pub risk_initial: f64,
     pub risk_percent_initial: Option<f64>,
@@ -222,7 +222,7 @@ impl Store
         let mut statement = self
             .connection
             .prepare(
-                "SELECT t.trade_id, p.name, t.date_buy, COALESCE(t.date_sell, ''),
+                "SELECT t.trade_id, p.name, t.date_buy, t.date_sell,
                     t.is_long, t.shares_buy, t.shares_sell, t.price_buy, t.price_sell,
                     cost.commission_buy, cost.tax_buy, cost.commission_sell,
                     cost.tax_sell, cost.other, calc.risk_initial, calc.risk_initial_converted, calc.profit_loss, calc.profit_loss_converted,
@@ -434,6 +434,7 @@ impl Store
 
     pub fn add_trade(&mut self, trade: NewTrade) -> Result<(), String>
     {
+        validate_trade_fields(&trade)?;
         let product_id: i64 = self
             .connection
             .query_row(
@@ -463,7 +464,7 @@ impl Store
             return Err("Pool balance must be finite and nonnegative".into());
         }
         transaction
-            .execute("INSERT INTO t_pool(pool_value, pool_value_converted) VALUES (?1, ?2)", [pool_value, convert_to_orig(pool_value, trade.exchange_rate_buy)])
+            .execute("INSERT INTO t_pool(pool_value, pool_value_converted) VALUES (?1, ?2)", [pool_value, convert_to_orig(pool_value, if trade.is_long { trade.exchange_rate_buy } else { trade.exchange_rate_sell })])
             .map_err(db_error)?;
         let pool_id = transaction.last_insert_rowid();
         transaction
@@ -508,7 +509,7 @@ impl Store
                                  is_long, shares_buy, shares_sell, price_buy, price_sell, exchange_rate_buy, exchange_rate_sell)
                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![calculated_id, product_id, cost_id, review_id, pool_id, trade.date_buy, trade.date_sell,
-                    trade.is_long, trade.shares_buy, if profit_loss.is_some() { trade.shares_sell } else { 0 },
+                    trade.is_long, trade.shares_buy, trade.shares_sell,
                     trade.price_buy, trade.price_sell, trade.exchange_rate_buy, trade.exchange_rate_sell]
         ).map_err(db_error)?;
         if let Some(profit_loss_total_converted) = profit_loss_total_converted
@@ -521,6 +522,7 @@ impl Store
 
     pub fn update_trade(&mut self, id: i64, trade: NewTrade) -> Result<(), String>
     {
+        validate_trade_fields(&trade)?;
         let product_id: i64 = self
             .connection
             .query_row(
@@ -536,7 +538,7 @@ impl Store
             .query_row(
                 "SELECT t.trade_cost_id, t.trade_calculated_id, pool.pool_value FROM t_trade t
              JOIN t_pool pool ON pool.pool_id = t.pool_id
-             WHERE t.trade_id = ?1 AND t.is_deleted = 0 AND t.date_sell IS NULL",
+             WHERE t.trade_id = ?1 AND t.is_deleted = 0 AND (t.date_buy IS NULL OR t.date_sell IS NULL)",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -634,6 +636,44 @@ impl Store
     }
 }
 
+fn validate_trade_fields(trade: &NewTrade) -> Result<(), String>
+{
+    if trade.date_buy.is_none() && trade.date_sell.is_none()
+    {
+        return Err("Enter a buy or sell date".into());
+    }
+    if trade.shares_buy.is_none() && trade.shares_sell.is_none()
+    {
+        return Err("Enter buy or sell shares".into());
+    }
+    if trade.commission_buy.is_none() && trade.commission_sell.is_none()
+    {
+        return Err("Enter a buy or sell commission".into());
+    }
+    if trade.tax_buy.is_none() && trade.tax_sell.is_none()
+    {
+        return Err("Enter a buy or sell tax".into());
+    }
+    if trade.is_long && (trade.date_buy.is_none() || trade.shares_buy.is_none()
+        || trade.commission_buy.is_none() || trade.tax_buy.is_none())
+    {
+        return Err("Long trades need buy date, shares, commission, and tax".into());
+    }
+    if !trade.is_long && (trade.date_sell.is_none() || trade.shares_sell.is_none()
+        || trade.commission_sell.is_none() || trade.tax_sell.is_none())
+    {
+        return Err("Short trades need sell date, shares, commission, and tax".into());
+    }
+    if trade.date_buy.is_some() && trade.date_sell.is_some()
+        && (trade.shares_buy.is_none() || trade.shares_sell.is_none()
+            || trade.commission_buy.is_none() || trade.commission_sell.is_none()
+            || trade.tax_buy.is_none() || trade.tax_sell.is_none())
+    {
+        return Err("Closed trades need buy and sell shares, commissions, and taxes".into());
+    }
+    Ok(())
+}
+
 fn record_pool_profit_loss_total(transaction: &Transaction<'_>, profit_loss_total: f64) -> Result<(), String>
 {
     let current: f64 = transaction
@@ -701,4 +741,57 @@ pub fn database_path() -> PathBuf
         .nth(1)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("capitalcommander.sqlite3"))
+}
+
+#[cfg(test)]
+mod schema_tests
+{
+    use super::*;
+
+    #[test]
+    fn upgrades_old_trade_tables_without_losing_rows()
+    {
+        let mut connection = Connection::open_in_memory().unwrap();
+        let old_schema = include_str!("../migrations/0001_initial.sql")
+            .replace("date_buy TEXT CHECK (date_buy IS NULL OR length(trim(date_buy)) > 0)",
+                "date_buy TEXT NOT NULL")
+            .replace("shares_sell INTEGER CHECK (shares_sell > 0)",
+                "shares_sell INTEGER NOT NULL DEFAULT 0 CHECK (shares_sell >= 0)");
+        connection.execute_batch(&old_schema).unwrap();
+        connection.pragma_update(None, "user_version", 1).unwrap();
+        connection.execute_batch(
+            "INSERT INTO t_trade_cost(commission_buy, tax_buy, commission_sell, tax_sell) VALUES (1, 0, 0, 0);
+             INSERT INTO t_trade_calculated DEFAULT VALUES;
+             INSERT INTO t_trade_review(review) VALUES ('keep this review');
+             INSERT INTO t_trade(trade_id, trade_calculated_id, product_id, trade_cost_id,
+                 trade_review_id, pool_id, date_buy, is_long, shares_buy, shares_sell,
+                 price_buy, price_sell)
+                 VALUES (42, 1, 1, 1, 1, 1, '2026-01-02', 1, 2, 0, 10, 0);",
+        ).unwrap();
+
+        ensure_nullable_trade_columns(&mut connection).unwrap();
+        ensure_nullable_trade_columns(&mut connection).unwrap();
+        let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
+        assert_eq!(version, 1);
+        let row: (i64, Option<i32>, String, f64) = connection.query_row(
+            "SELECT t.trade_id, t.shares_sell, r.review, c.commission_buy
+             FROM t_trade t JOIN t_trade_review r ON r.trade_review_id = t.trade_review_id
+             JOIN t_trade_cost c ON c.trade_cost_id = t.trade_cost_id",
+            [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        ).unwrap();
+        assert_eq!(row, (42, None, "keep this review".into(), 1.0));
+        let date_buy_required: i64 = connection.query_row(
+            "SELECT `notnull` FROM pragma_table_info('t_trade') WHERE name = 'date_buy'",
+            [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(date_buy_required, 0);
+        let violations: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(violations, 0);
+        assert!(connection.execute("UPDATE t_trade SET date_buy = NULL WHERE trade_id = 42", []).is_err());
+        assert!(connection.execute("UPDATE t_trade SET shares_buy = NULL WHERE trade_id = 42", []).is_err());
+        assert!(connection.execute("UPDATE t_trade_cost SET commission_buy = NULL, commission_sell = NULL WHERE trade_cost_id = 1", []).is_err());
+        assert!(connection.execute("UPDATE t_trade_cost SET tax_buy = NULL, tax_sell = NULL WHERE trade_cost_id = 1", []).is_err());
+    }
 }

@@ -6,7 +6,7 @@ mod calculatorfinance_lib;
 use data::{Journal, NewTrade, Store, Trade};
 use calculatorfinance_lib::{trade_type};
 use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_shares_recommended, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage};
-use util::{check_date, date_in_range, format_number, validated_as_positive};
+use util::{check_date, date_in_range, format_number, optional_nonnegative, optional_shares, validated_as_positive};
 use slint::{language::StandardListViewItem, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -469,22 +469,63 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         return Err("Select a product by name".into());
                     }
-                    check_date(&date_buy, "Buy date", false)?;
+                    check_date(&date_buy, "Buy date", true)?;
                     check_date(&date_sell, "Sell date", true)?;
-                    if !date_sell.is_empty() && date_sell < date_buy
+                    let is_long = side == "Long";
+                    if date_buy.is_empty() && date_sell.is_empty()
+                    {
+                        return Err("Enter a buy or sell date".into());
+                    }
+                    if is_long && date_buy.is_empty()
+                    {
+                        return Err("Long trades need a buy date".into());
+                    }
+                    if !is_long && date_sell.is_empty()
+                    {
+                        return Err("Short trades need a sell date".into());
+                    }
+                    if !date_buy.is_empty() && !date_sell.is_empty() && date_sell < date_buy
                     {
                         return Err("Sell date must be on or after buy date".into());
                     }
-                    let shares_buy = validated_as_positive(&shares_buy, "Shares buy")? as i32;
-                    let shares_sell = validated_as_positive(&shares_sell, "Shares sell")? as i32;
+                    let shares_buy = optional_shares(&shares_buy, "Shares buy")?;
+                    let shares_sell = optional_shares(&shares_sell, "Shares sell")?;
+                    if shares_buy.is_none() && shares_sell.is_none()
+                    {
+                        return Err("Enter buy or sell shares".into());
+                    }
+                    if is_long && shares_buy.is_none() || !is_long && shares_sell.is_none()
+                    {
+                        return Err(format!("{} trades need {} shares", side, if is_long { "buy" } else { "sell" }));
+                    }
                     let price_buy = validated_as_positive(&price_buy, "Buy price")?;
                     let price_sell = validated_as_positive(&price_sell, "Sell price")?;
                     let exchange_rate_buy = validated_as_positive(&exchange_rate_buy, "Buy exchange rate")?;
                     let exchange_rate_sell = validated_as_positive(&exchange_rate_sell, "Sell exchange rate")?;
-                    let commission_buy = validated_as_positive(&commission_buy, "Commission buy")?;
-                    let tax_buy = validated_as_positive(&tax_buy, "Tax buy")?;
-                    let commission_sell = validated_as_positive(&commission_sell, "Commission sell")?;
-                    let tax_sell = validated_as_positive(&tax_sell, "Tax sell")?;
+                    let commission_buy = optional_nonnegative(&commission_buy, "Commission buy")?;
+                    let tax_buy = optional_nonnegative(&tax_buy, "Tax buy")?;
+                    let commission_sell = optional_nonnegative(&commission_sell, "Commission sell")?;
+                    let tax_sell = optional_nonnegative(&tax_sell, "Tax sell")?;
+                    if commission_buy.is_none() && commission_sell.is_none()
+                    {
+                        return Err("Enter a buy or sell commission".into());
+                    }
+                    if tax_buy.is_none() && tax_sell.is_none()
+                    {
+                        return Err("Enter a buy or sell tax".into());
+                    }
+                    if is_long && (commission_buy.is_none() || tax_buy.is_none())
+                        || !is_long && (commission_sell.is_none() || tax_sell.is_none())
+                    {
+                        return Err(format!("{} trades need {} commission and tax", side, if is_long { "buy" } else { "sell" }));
+                    }
+                    if !date_buy.is_empty() && !date_sell.is_empty()
+                        && (shares_buy.is_none() || shares_sell.is_none()
+                            || commission_buy.is_none() || commission_sell.is_none()
+                            || tax_buy.is_none() || tax_sell.is_none())
+                    {
+                        return Err("Closed trades need buy and sell shares, commissions, and taxes".into());
+                    }
                     let cost_other = validated_as_positive(&cost_other, "Other costs")?;
                     let stoploss_initial = if stoploss.trim().is_empty()
                     {
@@ -511,11 +552,16 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         return Err("Risk pool must be greater than zero".into());
                     }
-                    let is_long = side == "Long";
+                    let shares_buy_value = shares_buy.unwrap_or_default();
+                    let shares_sell_value = shares_sell.unwrap_or_default();
+                    let commission_buy_value = commission_buy.unwrap_or_default();
+                    let commission_sell_value = commission_sell.unwrap_or_default();
+                    let tax_buy_value = tax_buy.unwrap_or_default();
+                    let tax_sell_value = tax_sell.unwrap_or_default();
                     let stoploss_initial = stoploss_initial.or_else(|| risk_percent_entered.map(|risk_percent| {
                         calculate_stoploss_initial(
-                            price_buy, shares_buy, tax_buy, commission_buy,
-                            price_sell, shares_sell, tax_sell, commission_sell,
+                            price_buy, shares_buy_value, tax_buy_value, commission_buy_value,
+                            price_sell, shares_sell_value, tax_sell_value, commission_sell_value,
                             risk_percent, trade_pool, trade_type(is_long),
                         )
                     })).ok_or("Enter risk % or stoploss")?;
@@ -524,8 +570,8 @@ fn main() -> Result<(), slint::PlatformError>
                         return Err("Risk % produces an invalid stoploss".into());
                     }
                     let risk_initial = calculate_risk_initial(
-                        price_buy, shares_buy, tax_buy, commission_buy,
-                        price_sell, shares_sell, tax_sell, commission_sell,
+                        price_buy, shares_buy_value, tax_buy_value, commission_buy_value,
+                        price_sell, shares_sell_value, tax_sell_value, commission_sell_value,
                         stoploss_initial, trade_type(is_long),
                     );
                     if !risk_initial.is_finite() || risk_initial < 0.0
@@ -533,21 +579,21 @@ fn main() -> Result<(), slint::PlatformError>
                         return Err("Stoploss produces an invalid initial risk".into());
                     }
                     let risk_percent_initial = calculate_risk_percentage_initial(
-                        price_buy, shares_buy, tax_buy, commission_buy,
-                        price_sell, shares_sell, tax_sell, commission_sell,
+                        price_buy, shares_buy_value, tax_buy_value, commission_buy_value,
+                        price_sell, shares_sell_value, tax_sell_value, commission_sell_value,
                         stoploss_initial, trade_pool, trade_type(is_long),
                     );
                     if !risk_percent_initial.is_finite() || risk_percent_initial < 0.0
                     {
                         return Err("Stoploss produces an invalid risk percentage".into());
                     }
-                    let risk_percent_actual = if date_sell.is_empty()
+                    let risk_percent_actual = if date_buy.is_empty() || date_sell.is_empty()
                     {
                         None
                     }
                     else
                     {
-                        Some(calculate_risk_percentage(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss_initial, trade_pool, trade_type(is_long)))
+                        Some(calculate_risk_percentage(price_buy, shares_buy_value, tax_buy_value, commission_buy_value, price_sell, shares_sell_value, tax_sell_value, commission_sell_value, stoploss_initial, trade_pool, trade_type(is_long)))
                     };
                     let trade_pool = if trade_id == 0
                     {
@@ -559,7 +605,7 @@ fn main() -> Result<(), slint::PlatformError>
                     };
                     let trade = NewTrade {
                         product: product.into(),
-                        date_buy: date_buy.into(),
+                        date_buy: if date_buy.is_empty() { None } else { Some(date_buy.into()) },
                         date_sell: if date_sell.is_empty()
                         {
                             None
@@ -877,6 +923,18 @@ fn strings(values: Vec<String>) -> ModelRc<SharedString>
     )))
 }
 
+fn trade_entry_date(trade: &Trade) -> &str
+{
+    if trade.is_long
+    {
+        trade.date_buy.as_deref().unwrap_or("")
+    }
+    else
+    {
+        trade.date_sell.as_deref().unwrap_or("")
+    }
+}
+
 fn refresh(window: &AppWindow, journal: &Journal)
 {
     window.set_current_pool_exact(
@@ -898,7 +956,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
     let selected: Vec<_> = journal
         .trades
         .iter()
-        .filter(|trade| date_in_range(&trade.date_buy, &from, &to))
+        .filter(|trade| date_in_range(trade_entry_date(trade), &from, &to))
         .collect();
     let is_closed: Vec<_> = selected
         .iter()
@@ -960,31 +1018,24 @@ fn refresh(window: &AppWindow, journal: &Journal)
             side: (if trade.is_long { "Long" } else { "Short" }).into(),
             dates: format!(
                 "{} → {}",
-                trade.date_buy,
-                if trade.date_sell.is_empty()
-                {
-                    "open"
-                }
-                else
-                {
-                    &trade.date_sell
-                }
+                trade.date_buy.as_deref().unwrap_or("open"),
+                trade.date_sell.as_deref().unwrap_or("open")
             )
             .into(),
-            date_buy: trade.date_buy.clone().into(),
-            date_sell: trade.date_sell.clone().into(),
-            shares_buy: format_number(trade.shares_buy.into()).into(),
-            shares_sell: format_number(trade.shares_sell.into()).into(),
-            edit_shares_buy: trade.shares_buy.to_string().into(),
-            edit_shares_sell: trade.shares_sell.to_string().into(),
+            date_buy: trade.date_buy.clone().unwrap_or_default().into(),
+            date_sell: trade.date_sell.clone().unwrap_or_default().into(),
+            shares_buy: trade.shares_buy.map(|v| format_number(v.into())).unwrap_or_default().into(),
+            shares_sell: trade.shares_sell.map(|v| format_number(v.into())).unwrap_or_default().into(),
+            edit_shares_buy: trade.shares_buy.map(|v| v.to_string()).unwrap_or_default().into(),
+            edit_shares_sell: trade.shares_sell.map(|v| v.to_string()).unwrap_or_default().into(),
             price_buy: trade.price_buy.to_string().into(),
             price_sell: trade.price_sell.to_string().into(),
             exchange_rate_buy: trade.exchange_rate_buy.to_string().into(),
             exchange_rate_sell: trade.exchange_rate_sell.to_string().into(),
-            commission_buy: trade.commission_buy.to_string().into(),
-            tax_buy: trade.tax_buy.to_string().into(),
-            commission_sell: trade.commission_sell.to_string().into(),
-            tax_sell: trade.tax_sell.to_string().into(),
+            commission_buy: trade.commission_buy.map(|v| v.to_string()).unwrap_or_default().into(),
+            tax_buy: trade.tax_buy.map(|v| v.to_string()).unwrap_or_default().into(),
+            commission_sell: trade.commission_sell.map(|v| v.to_string()).unwrap_or_default().into(),
+            tax_sell: trade.tax_sell.map(|v| v.to_string()).unwrap_or_default().into(),
             cost_other: trade.cost_other.to_string().into(),
             risk_percent_initial: trade
                 .risk_percent_initial
@@ -1112,13 +1163,13 @@ fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &s
     let selected: Vec<_> = journal
         .trades
         .iter()
-        .filter(|trade| date_in_range(&trade.date_buy, from, to))
+        .filter(|trade| date_in_range(trade_entry_date(trade), from, to))
         .collect();
     let sum = |cost: fn(&Trade) -> f64| -> f64 { selected.iter().map(|trade| cost(trade)).sum() };
-    let commission_buy = sum(|trade| trade.commission_buy);
-    let tax_buy = sum(|trade| trade.tax_buy);
-    let commission_sell = sum(|trade| trade.commission_sell);
-    let tax_sell = sum(|trade| trade.tax_sell);
+    let commission_buy = sum(|trade| trade.commission_buy.unwrap_or_default());
+    let tax_buy = sum(|trade| trade.tax_buy.unwrap_or_default());
+    let commission_sell = sum(|trade| trade.commission_sell.unwrap_or_default());
+    let tax_sell = sum(|trade| trade.tax_sell.unwrap_or_default());
     let other = sum(|trade| trade.cost_other);
     window.set_costs_count(selected.len().to_string().into());
     window.set_costs_commission_buy(format!("{commission_buy:.2}").into());
@@ -1139,18 +1190,18 @@ fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &s
         .map(|trade| TradeCostRow {
             id: trade.id as i32,
             product: trade.product.clone().into(),
-            date_buy: trade.date_buy.clone().into(),
-            date_sell: trade.date_sell.clone().into(),
-            commission_buy: format_table_real(trade.commission_buy).into(),
-            tax_buy: format_table_real(trade.tax_buy).into(),
-            commission_sell: format_table_real(trade.commission_sell).into(),
-            tax_sell: format_table_real(trade.tax_sell).into(),
+            date_buy: trade.date_buy.clone().unwrap_or_default().into(),
+            date_sell: trade.date_sell.clone().unwrap_or_default().into(),
+            commission_buy: trade.commission_buy.map(format_table_real).unwrap_or_default().into(),
+            tax_buy: trade.tax_buy.map(format_table_real).unwrap_or_default().into(),
+            commission_sell: trade.commission_sell.map(format_table_real).unwrap_or_default().into(),
+            tax_sell: trade.tax_sell.map(format_table_real).unwrap_or_default().into(),
             other: format_table_real(trade.cost_other).into(),
             total: format_table_real(
-                trade.commission_buy
-                    + trade.tax_buy
-                    + trade.commission_sell
-                    + trade.tax_sell
+                trade.commission_buy.unwrap_or_default()
+                    + trade.tax_buy.unwrap_or_default()
+                    + trade.commission_sell.unwrap_or_default()
+                    + trade.tax_sell.unwrap_or_default()
                     + trade.cost_other
             )
             .into(),

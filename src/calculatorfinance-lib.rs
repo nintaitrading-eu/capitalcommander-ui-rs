@@ -36,19 +36,25 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     String,
 >
 {
+    let shares_buy = trade.shares_buy.unwrap_or_default();
+    let shares_sell = trade.shares_sell.unwrap_or_default();
+    let commission_buy = trade.commission_buy.unwrap_or_default();
+    let commission_sell = trade.commission_sell.unwrap_or_default();
+    let tax_buy = trade.tax_buy.unwrap_or_default();
+    let tax_sell = trade.tax_sell.unwrap_or_default();
     let stoploss_initial = match (trade.stoploss_initial, trade.risk_percent_initial)
     {
         (Some(stoploss_initial), _) => Some(stoploss_initial),
         (None, Some(risk_percent_initial)) => Some(calculate_stoploss_initial(
             trade.price_buy,
-            trade.shares_buy,
-            trade.tax_buy,
-            trade.commission_buy,
+            shares_buy,
+            tax_buy,
+            commission_buy,
             trade.price_sell,
-            trade.shares_sell,
-            trade.tax_sell,
-            trade.commission_sell,
-            trade.risk_initial,
+            shares_sell,
+            tax_sell,
+            commission_sell,
+            risk_percent_initial,
             pool_value,
             trade_type(trade.is_long),
         )),
@@ -58,13 +64,13 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     {
         calculate_risk_initial(
             trade.price_buy,
-            trade.shares_buy,
-            trade.tax_buy,
-            trade.commission_buy,
+            shares_buy,
+            tax_buy,
+            commission_buy,
             trade.price_sell,
-            trade.shares_sell,
-            trade.tax_sell,
-            trade.commission_sell,
+            shares_sell,
+            tax_sell,
+            commission_sell,
             stoploss_initial,
             trade_type(trade.is_long),
         )
@@ -80,13 +86,13 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     let (entry_buy_price, entry_buy_shares, entry_buy_tax, entry_buy_commission,
          entry_sell_price, entry_sell_shares, entry_sell_tax, entry_sell_commission) = if trade.is_long
     {
-        (trade.price_buy, trade.shares_buy, trade.tax_buy, trade.commission_buy,
+        (trade.price_buy, shares_buy, tax_buy, commission_buy,
          0.0, 0, 0.0, 0.0)
     }
     else
     {
         (0.0, 0, 0.0, 0.0,
-         trade.price_sell, trade.shares_sell, trade.tax_sell, trade.commission_sell)
+         trade.price_sell, shares_sell, tax_sell, commission_sell)
     };
     let target_minimum = calculate_close_at_breakeven(
         entry_buy_price, entry_buy_shares, entry_buy_tax, entry_buy_commission,
@@ -106,25 +112,25 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     {
         return Err("Preferred target must be finite and nonnegative. Check the entry price and tax.".into());
     }
-    let profit_loss = trade.date_sell.as_ref().map(|_| {
+    let profit_loss = (trade.date_buy.is_some() && trade.date_sell.is_some()).then(|| {
         calculate_profit_loss(
             trade.price_buy,
-            trade.shares_buy,
+            shares_buy,
             trade.price_sell,
-            trade.shares_sell,
+            shares_sell,
             trade_type(trade.is_long),
         )
     });
-    let profit_loss_total = trade.date_sell.as_ref().map(|_| {
+    let profit_loss_total = (trade.date_buy.is_some() && trade.date_sell.is_some()).then(|| {
         calculate_profit_loss_total(
             trade.price_buy,
-            trade.shares_buy,
-            trade.tax_buy,
-            trade.commission_buy,
+            shares_buy,
+            tax_buy,
+            commission_buy,
             trade.price_sell,
-            trade.shares_sell,
-            trade.tax_sell,
-            trade.commission_sell,
+            shares_sell,
+            tax_sell,
+            commission_sell,
             trade_type(trade.is_long),
         ) + trade.cost_other
     });
@@ -134,13 +140,13 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     let risk_actual = profit_loss.map(|pl| {
         calculate_risk(
             trade.price_buy,
-            trade.shares_buy,
-            trade.tax_buy,
-            trade.commission_buy,
+            shares_buy,
+            tax_buy,
+            commission_buy,
             trade.price_sell,
-            trade.shares_sell,
-            trade.tax_sell,
-            trade.commission_sell,
+            shares_sell,
+            tax_sell,
+            commission_sell,
             risk_initial,
             pl,
             trade_type(trade.is_long),
@@ -153,13 +159,13 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     let stoploss_actual = risk_actual.map(|risk| {
         calculate_stoploss(
             trade.price_buy,
-            trade.shares_buy,
-            trade.tax_buy,
-            trade.commission_buy,
+            shares_buy,
+            tax_buy,
+            commission_buy,
             trade.price_sell,
-            trade.shares_sell,
-            trade.tax_sell,
-            trade.commission_sell,
+            shares_sell,
+            tax_sell,
+            commission_sell,
             risk / pool_value * 100.0,
             pool_value,
             trade_type(trade.is_long),
@@ -171,7 +177,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     }
 
 
-    let risk_initial_converted = convert_from_orig(risk_initial, trade.exchange_rate_buy);
+    let risk_initial_converted = convert_from_orig(risk_initial, if trade.is_long { trade.exchange_rate_buy } else { trade.exchange_rate_sell });
     let risk_actual_converted = if risk_actual.is_some()
     {
         Some(convert_from_orig(risk_actual.unwrap(), if trade.is_long { trade.exchange_rate_sell } else { trade.exchange_rate_buy }))

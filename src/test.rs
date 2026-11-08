@@ -80,19 +80,19 @@ fn valid_r_multiple_requires_positive_risk()
         review: String::new(),
         product: "A".into(),
         currency: "EUR".into(),
-        date_buy: "2026-01-01".into(),
-        date_sell: "2026-01-02".into(),
+        date_buy: Some("2026-01-01".into()),
+        date_sell: Some("2026-01-02".into()),
         is_long: true,
-        shares_buy: 1,
-        shares_sell: 1,
+        shares_buy: Some(1),
+        shares_sell: Some(1),
         price_buy: 1.0,
         price_sell: 2.0,
         exchange_rate_buy: 1.0,
         exchange_rate_sell: 1.0,
-        commission_buy: 0.0,
-        tax_buy: 0.0,
-        commission_sell: 0.0,
-        tax_sell: 0.0,
+        commission_buy: Some(0.0),
+        tax_buy: Some(0.0),
+        commission_sell: Some(0.0),
+        tax_sell: Some(0.0),
         cost_other: 0.0,
         risk_initial: 10.0,
         risk_initial_converted: 10.0,
@@ -160,19 +160,19 @@ fn saves_entered_stoploss_and_derived_risk()
     store
         .add_trade(NewTrade {
             product: "FDX".into(),
-            date_buy: "2026-09-28".into(),
+            date_buy: Some("2026-09-28".into()),
             date_sell: None,
             is_long: true,
-            shares_buy: 2,
-            shares_sell: 2,
+            shares_buy: Some(2),
+            shares_sell: Some(2),
             price_buy: 12.0,
             price_sell: 0.0,
             exchange_rate_buy: 1.0,
             exchange_rate_sell: 1.0,
-            commission_buy: 1.0,
-            tax_buy: 0.0,
-            commission_sell: 1.0,
-            tax_sell: 0.0,
+            commission_buy: Some(1.0),
+            tax_buy: Some(0.0),
+            commission_sell: Some(1.0),
+            tax_sell: Some(0.0),
             cost_other: 0.0,
             risk_initial: 0.0,
             risk_percent_initial: Some(risk_percent),
@@ -211,19 +211,19 @@ fn updates_saved_targets_with_trade_inputs()
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let trade = NewTrade {
         product: "FDX".into(),
-        date_buy: "2026-09-28".into(),
+        date_buy: Some("2026-09-28".into()),
         date_sell: None,
         is_long: true,
-        shares_buy: 2,
-        shares_sell: 0,
+        shares_buy: Some(2),
+        shares_sell: None,
         price_buy: 12.0,
         price_sell: 0.0,
         exchange_rate_buy: 1.0,
         exchange_rate_sell: 1.0,
-        commission_buy: 1.0,
-        tax_buy: 0.0,
-        commission_sell: 1.0,
-        tax_sell: 0.0,
+        commission_buy: Some(1.0),
+        tax_buy: Some(0.0),
+        commission_sell: Some(1.0),
+        tax_sell: Some(0.0),
         cost_other: 0.0,
         risk_initial: 0.0,
         risk_percent_initial: Some(0.0),
@@ -248,19 +248,19 @@ fn calculates_and_saves_trade_risks_when_closed()
     );
     let open = NewTrade {
         product: "FDX".into(),
-        date_buy: "2026-09-28".into(),
+        date_buy: Some("2026-09-28".into()),
         date_sell: None,
         is_long: true,
-        shares_buy: 2,
-        shares_sell: 2,
+        shares_buy: Some(2),
+        shares_sell: Some(2),
         price_buy: 12.0,
         price_sell: 0.0,
         exchange_rate_buy: 1.0,
         exchange_rate_sell: 1.0,
-        commission_buy: 0.5,
-        tax_buy: 0.25,
-        commission_sell: 1.0,
-        tax_sell: 0.25,
+        commission_buy: Some(0.5),
+        tax_buy: Some(0.25),
+        commission_sell: Some(1.0),
+        tax_sell: Some(0.25),
         cost_other: 0.0,
         risk_initial: 999.0,
         risk_percent_initial: Some(1.0),
@@ -295,19 +295,19 @@ fn calculates_and_saves_trade_risks_when_closed()
             id,
             NewTrade {
                 product: "FDX".into(),
-                date_buy: "2026-09-28".into(),
+                date_buy: Some("2026-09-28".into()),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
-                shares_buy: 2,
-                shares_sell: 2,
+                shares_buy: Some(2),
+                shares_sell: Some(2),
                 price_buy: 12.0,
                 price_sell: 8.0,
                 exchange_rate_buy: 1.0,
                 exchange_rate_sell: 1.0,
-                commission_buy: 0.5,
-                tax_buy: 0.25,
-                commission_sell: 1.0,
-                tax_sell: 0.25,
+                commission_buy: Some(0.5),
+                tax_buy: Some(0.25),
+                commission_sell: Some(1.0),
+                tax_sell: Some(0.25),
                 cost_other: 0.0,
                 risk_initial: 999.0,
                 risk_percent_initial: Some(1.0),
@@ -405,19 +405,19 @@ fn profit_and_loss_totals_include_all_trade_costs()
         store
             .add_trade(NewTrade {
                 product: "FDX".into(),
-                date_buy: "2026-09-28".into(),
+                date_buy: Some("2026-09-28".into()),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
-                shares_buy: 2,
-                shares_sell: 2,
+                shares_buy: Some(2),
+                shares_sell: Some(2),
                 price_buy: 10.0,
                 price_sell,
                 exchange_rate_buy: 1.0,
                 exchange_rate_sell: 1.0,
-                commission_buy: 0.5,
-                tax_buy: 1.0,
-                commission_sell: 0.25,
-                tax_sell: 2.0,
+                commission_buy: Some(0.5),
+                tax_buy: Some(1.0),
+                commission_sell: Some(0.25),
+                tax_sell: Some(2.0),
                 cost_other: 0.4,
                 risk_initial: 2.0,
                 risk_percent_initial: Some(0.0),
@@ -446,19 +446,19 @@ fn persists_trade_relations()
     store
         .add_trade(NewTrade {
             product: "TEST.cfd".into(),
-            date_buy: "2026-09-28".into(),
+            date_buy: Some("2026-09-28".into()),
             date_sell: Some("2026-09-29".into()),
             is_long: true,
-            shares_buy: 2,
-            shares_sell: 2,
+            shares_buy: Some(2),
+            shares_sell: Some(2),
             price_buy: 10.0,
             price_sell: 12.0,
             exchange_rate_buy: 1.0,
             exchange_rate_sell: 1.0,
-            commission_buy: 0.5,
-            tax_buy: 0.25,
-            commission_sell: 1.5,
-            tax_sell: 0.35,
+            commission_buy: Some(0.5),
+            tax_buy: Some(0.25),
+            commission_sell: Some(1.5),
+            tax_sell: Some(0.35),
             cost_other: 0.25,
             risk_initial: 2.0,
             risk_percent_initial: Some(0.0),
@@ -469,7 +469,7 @@ fn persists_trade_relations()
         .unwrap();
     let journal = store.load().unwrap();
     assert_eq!(journal.trades[0].product, "TEST.cfd");
-    assert_eq!(journal.trades[0].shares_buy, 2);
+    assert_eq!(journal.trades[0].shares_buy, Some(2));
     assert!((journal.trades[0].profit_loss_total.unwrap() - 2.116).abs() < 1e-10);
     let saved_costs: (f64, f64, f64) = store
         .connection
@@ -488,19 +488,19 @@ fn closes_an_existing_trade_without_changing_its_id()
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let open_trade = NewTrade {
         product: "FDX".into(),
-        date_buy: "2026-09-28".into(),
+        date_buy: Some("2026-09-28".into()),
         date_sell: None,
         is_long: true,
-        shares_buy: 2,
-        shares_sell: 2,
+        shares_buy: Some(2),
+        shares_sell: Some(2),
         price_buy: 10.0,
         price_sell: 11.0,
         exchange_rate_buy: 1.0,
         exchange_rate_sell: 1.0,
-        commission_buy: 0.5,
-        tax_buy: 0.25,
-        commission_sell: 0.0,
-        tax_sell: 0.0,
+        commission_buy: Some(0.5),
+        tax_buy: Some(0.25),
+        commission_sell: Some(0.0),
+        tax_sell: Some(0.0),
         cost_other: 0.0,
         risk_initial: 2.0,
         risk_percent_initial: Some(0.0),
@@ -517,19 +517,19 @@ fn closes_an_existing_trade_without_changing_its_id()
             id,
             NewTrade {
                 product: "FDX".into(),
-                date_buy: "2026-09-28".into(),
+                date_buy: Some("2026-09-28".into()),
                 date_sell: Some("2026-09-30".into()),
                 is_long: true,
-                shares_buy: 2,
-                shares_sell: 2,
+                shares_buy: Some(2),
+                shares_sell: Some(2),
                 price_buy: 10.0,
                 price_sell: 12.0,
                 exchange_rate_buy: 1.0,
                 exchange_rate_sell: 1.0,
-                commission_buy: 0.5,
-                tax_buy: 0.25,
-                commission_sell: 1.0,
-                tax_sell: 0.25,
+                commission_buy: Some(0.5),
+                tax_buy: Some(0.25),
+                commission_sell: Some(1.0),
+                tax_sell: Some(0.25),
                 cost_other: 0.4,
                 risk_initial: 2.0,
                 risk_percent_initial: Some(0.0),
@@ -542,7 +542,7 @@ fn closes_an_existing_trade_without_changing_its_id()
     let journal = store.load().unwrap();
     assert_eq!(journal.trades.len(), 1);
     assert_eq!(journal.trades[0].id, id);
-    assert_eq!(journal.trades[0].date_sell, "2026-09-30");
+    assert_eq!(journal.trades[0].date_sell.as_deref(), Some("2026-09-30"));
     assert_eq!(journal.trades[0].price_sell, 12.0);
     assert_eq!(journal.trades[0].cost_other, 0.4);
     assert_eq!(journal.trades[0].profit_loss, Some(4.0));
@@ -550,19 +550,19 @@ fn closes_an_existing_trade_without_changing_its_id()
     assert!(pool_after_close.unwrap() > 75000.0);
     let closed_trade = NewTrade {
         product: "FDX".into(),
-        date_buy: "2026-09-28".into(),
+        date_buy: Some("2026-09-28".into()),
         date_sell: Some("2026-09-30".into()),
         is_long: true,
-        shares_buy: 2,
-        shares_sell: 2,
+        shares_buy: Some(2),
+        shares_sell: Some(2),
         price_buy: 10.0,
         price_sell: 12.0,
         exchange_rate_buy: 1.0,
         exchange_rate_sell: 1.0,
-        commission_buy: 0.5,
-        tax_buy: 0.25,
-        commission_sell: 1.0,
-        tax_sell: 0.25,
+        commission_buy: Some(0.5),
+        tax_buy: Some(0.25),
+        commission_sell: Some(1.0),
+        tax_sell: Some(0.25),
         cost_other: 0.4,
         risk_initial: 2.0,
         risk_percent_initial: Some(0.0),
@@ -584,19 +584,19 @@ fn stores_short_trade()
     );
     let trade = NewTrade {
         product: "FDX".into(),
-        date_buy: "2026-09-28".into(),
+        date_buy: Some("2026-09-28".into()),
         date_sell: Some("2026-09-29".into()),
         is_long: false,
-        shares_buy: 2,
-        shares_sell: 2,
+        shares_buy: Some(2),
+        shares_sell: Some(2),
         price_buy: 12.0,
         price_sell: 10.0,
         exchange_rate_buy: 1.2,
         exchange_rate_sell: 1.1,
-        commission_buy: 0.2,
-        tax_buy: 0.1,
-        commission_sell: 0.3,
-        tax_sell: 0.1,
+        commission_buy: Some(0.2),
+        tax_buy: Some(0.1),
+        commission_sell: Some(0.3),
+        tax_sell: Some(0.1),
         cost_other: 0.2,
         risk_initial: 1.5,
         risk_percent_initial: Some(1.5 / 75000.0 * 100.0),
@@ -606,6 +606,7 @@ fn stores_short_trade()
     };
     store.add_trade(trade).unwrap();
     let journal = store.load().unwrap();
+    assert_eq!(super::trade_entry_date(&journal.trades[0]), "2026-09-29");
     assert!((journal.trades[0].profit_loss.unwrap() - 4.0).abs() < 1e-10);
     assert!((journal.trades[0].profit_loss_converted.unwrap() - 4.8).abs() < 1e-10);
     assert!((journal.trades[0].profit_loss_total.unwrap() - 3.656).abs() < 1e-10);
@@ -618,24 +619,70 @@ fn stores_short_trade()
 }
 
 #[test]
+fn short_trade_can_open_without_buy_details_and_close_later()
+{
+    let mut store = Store::open(Path::new(":memory:")).unwrap();
+    let mut trade = NewTrade {
+        product: "FDX".into(),
+        date_buy: None,
+        date_sell: Some("2026-09-28".into()),
+        is_long: false,
+        shares_buy: None,
+        shares_sell: Some(2),
+        price_buy: 0.0,
+        price_sell: 10.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
+        commission_buy: None,
+        tax_buy: None,
+        commission_sell: Some(0.3),
+        tax_sell: Some(0.0),
+        cost_other: 0.0,
+        risk_initial: 0.0,
+        risk_percent_initial: Some(0.0),
+        risk_percent_actual: None,
+        trade_pool: None,
+        stoploss_initial: Some(11.0),
+    };
+    store.add_trade(trade.clone()).unwrap();
+    let open = store.load().unwrap();
+    let id = open.trades[0].id;
+    assert_eq!(open.trades[0].date_buy, None);
+    assert_eq!(open.trades[0].shares_buy, None);
+    assert_eq!(open.trades[0].commission_buy, None);
+    assert_eq!(open.trades[0].tax_buy, None);
+    assert_eq!(open.trades[0].profit_loss, None);
+
+    trade.date_buy = Some("2026-09-29".into());
+    trade.shares_buy = Some(2);
+    trade.price_buy = 9.0;
+    trade.commission_buy = Some(0.2);
+    trade.tax_buy = Some(0.0);
+    store.update_trade(id, trade).unwrap();
+    let closed = store.load().unwrap();
+    assert_eq!(closed.trades[0].id, id);
+    assert!(closed.trades[0].profit_loss.is_some());
+}
+
+#[test]
 fn a_losing_trade_reduces_the_pool_only_when_closed()
 {
     let mut store = Store::open(Path::new(":memory:")).unwrap();
     let trade = NewTrade {
         product: "FDX".into(),
-        date_buy: "2026-09-28".into(),
+        date_buy: Some("2026-09-28".into()),
         date_sell: None,
         is_long: true,
-        shares_buy: 2,
-        shares_sell: 2,
+        shares_buy: Some(2),
+        shares_sell: Some(2),
         price_buy: 12.0,
         price_sell: 10.0,
         exchange_rate_buy: 1.0,
         exchange_rate_sell: 1.0,
-        commission_buy: 0.0,
-        tax_buy: 0.0,
-        commission_sell: 0.0,
-        tax_sell: 0.0,
+        commission_buy: Some(0.0),
+        tax_buy: Some(0.0),
+        commission_sell: Some(0.0),
+        tax_sell: Some(0.0),
         cost_other: 0.0,
         risk_initial: 2.0,
         risk_percent_initial: Some(0.0),
@@ -651,19 +698,19 @@ fn a_losing_trade_reduces_the_pool_only_when_closed()
             id,
             NewTrade {
                 product: "FDX".into(),
-                date_buy: "2026-09-28".into(),
+                date_buy: Some("2026-09-28".into()),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
-                shares_buy: 2,
-                shares_sell: 2,
+                shares_buy: Some(2),
+                shares_sell: Some(2),
                 price_buy: 12.0,
                 price_sell: 10.0,
                 exchange_rate_buy: 1.0,
                 exchange_rate_sell: 1.0,
-                commission_buy: 0.0,
-                tax_buy: 0.0,
-                commission_sell: 0.0,
-                tax_sell: 0.0,
+                commission_buy: Some(0.0),
+                tax_buy: Some(0.0),
+                commission_sell: Some(0.0),
+                tax_sell: Some(0.0),
                 cost_other: 0.0,
                 risk_initial: 2.0,
                 risk_percent_initial: Some(0.0),
@@ -689,19 +736,19 @@ fn stores_exchange_rates()
     store
         .add_trade(NewTrade {
             product: "FDX".into(),
-            date_buy: "2026-09-28".into(),
+            date_buy: Some("2026-09-28".into()),
             date_sell: None,
             is_long: true,
-            shares_buy: 2,
-            shares_sell: 2,
+            shares_buy: Some(2),
+            shares_sell: Some(2),
             price_buy: 10.0,
             price_sell: 0.0,
             exchange_rate_buy: 1.2,
             exchange_rate_sell: 1.0,
-            commission_buy: 0.1,
-            tax_buy: 0.0,
-            commission_sell: 0.2,
-            tax_sell: 0.0,
+            commission_buy: Some(0.1),
+            tax_buy: Some(0.0),
+            commission_sell: Some(0.2),
+            tax_sell: Some(0.0),
             cost_other: 0.0,
             risk_initial: 1.2,
             risk_percent_initial: Some(0.0),
@@ -716,19 +763,19 @@ fn stores_exchange_rates()
             id,
             NewTrade {
                 product: "FDX".into(),
-                date_buy: "2026-09-28".into(),
+                date_buy: Some("2026-09-28".into()),
                 date_sell: Some("2026-09-29".into()),
                 is_long: true,
-                shares_buy: 2,
-                shares_sell: 2,
+                shares_buy: Some(2),
+                shares_sell: Some(2),
                 price_buy: 10.0,
                 price_sell: 12.0,
                 exchange_rate_buy: 1.2,
                 exchange_rate_sell: 1.1,
-                commission_buy: 0.1,
-                tax_buy: 0.0,
-                commission_sell: 0.2,
-                tax_sell: 0.0,
+                commission_buy: Some(0.1),
+                tax_buy: Some(0.0),
+                commission_sell: Some(0.2),
+                tax_sell: Some(0.0),
                 cost_other: 0.0,
                 risk_initial: 1.2,
                 risk_percent_initial: Some(0.0),

@@ -1,4 +1,4 @@
-import { VerticalBox, HorizontalBox, Button, LineEdit, TextEdit, ComboBox, StandardTableView, Palette, DatePickerPopup } from "std-widgets.slint";
+import { ScrollView, VerticalBox, HorizontalBox, Button, LineEdit, TextEdit, ComboBox, StandardTableView, Palette, DatePickerPopup } from "std-widgets.slint";
 
 component DateField inherits HorizontalBox
 {
@@ -125,7 +125,7 @@ export component AppWindow inherits Window
     preferred-width: 1120px;
     preferred-height: 760px;
     background: #282828;
-    default-font-size: 14px;
+    default-font-size: 12px;
     init => { Palette.color-scheme = ColorScheme.dark; }
 
     private property <color> primary: #ebdbb2;
@@ -139,6 +139,7 @@ export component AppWindow inherits Window
     private property <color> log: #83a598;
     in-out property <string> page: "Journal";
     in-out property <string> status: "Ready";
+    private property <string> trade-warning: "Enter at least one trade date.";
     in-out property <string> source-label: "capitalcommander.sqlite3";
     in-out property <string> current-pool: "";
     in-out property <string> current-pool-exact: "";
@@ -242,22 +243,24 @@ export component AppWindow inherits Window
  *******************************************************************************/
     VerticalBox
     {
-        padding: 18px;
-        spacing: 3px;
+        padding: 3px;
+        spacing: 0px;
         HorizontalBox
         {
-            spacing: 4px;
+            spacing: 2px;
+            cross-axis-alignment: center;
             Text { text: root.page; color: root.accent; font-size: 28px; font-weight: 700; }
             Rectangle { horizontal-stretch: 1; }
             if root.page != "Trade costs" && root.page != "Journal" && root.page != "Review": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
             if root.page == "Journal": Text { width: 170px; font-size: 24px; vertical-alignment: center; color: root.aqua; text: root.current-pool + " " + root.base-currency; }
-            if root.page == "Journal" || root.page == "Review": Text { text: "Buy date"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Journal" || root.page == "Review": Text { text: "Entry date"; color: root.secondary; vertical-alignment: center; }
             if root.page == "Journal" || root.page == "Review": DateField { value <=> root.journal-draft-from; }
             if root.page == "Journal" || root.page == "Review": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
             if root.page == "Journal" || root.page == "Review": DateField { value <=> root.journal-draft-to; }
-            if root.page == "Journal" || root.page == "Review": Button { text: "Apply"; clicked => { root.filter-journal(root.journal-draft-from, root.journal-draft-to); } }
+            if root.page == "Journal" || root.page == "Review": Button { height: 24px; text: "Apply"; clicked => { root.filter-journal(root.journal-draft-from, root.journal-draft-to); } }
             if root.page == "Journal" || root.page == "Review": Button
             {
+                height: 24px;
                 text: "Clear"; clicked =>
                 {
                     root.journal-draft-from = "";
@@ -265,13 +268,14 @@ export component AppWindow inherits Window
                     root.filter-journal("", "");
                 }
             }
-            if root.page == "Trade costs": Text { text: "Buy date"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Trade costs": Text { text: "Entry date"; color: root.secondary; vertical-alignment: center; }
             if root.page == "Trade costs": DateField { value <=> root.costs-draft-from; }
             if root.page == "Trade costs": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
             if root.page == "Trade costs": DateField { value <=> root.costs-draft-to; }
-            if root.page == "Trade costs": Button { text: "Apply"; clicked => { root.filter-trade-costs(root.costs-draft-from, root.costs-draft-to); } }
+            if root.page == "Trade costs": Button { height: 24px; text: "Apply"; clicked => { root.filter-trade-costs(root.costs-draft-from, root.costs-draft-to); } }
             if root.page == "Trade costs": Button
             {
+                height: 24px;
                 text: "Clear"; clicked =>
                 {
                     root.costs-draft-from = "";
@@ -284,11 +288,11 @@ export component AppWindow inherits Window
         if root.page == "Trade costs":
             VerticalBox
             {
-                spacing: 8px;
-                Text { text: "Costs in EUR for trades opened in the selected buy date range (inclusive)."; color: root.secondary; }
+                spacing: 2px;
+                Text { text: "Costs in EUR for trades opened in the selected entry date range (inclusive)."; color: root.secondary; }
                 HorizontalBox
                 {
-                    spacing: 3px;
+                    spacing: 2px;
                     Rectangle
                     {
                         background: root.surface; border-radius: 5px; height: 64px; horizontal-stretch: 1;
@@ -403,6 +407,7 @@ export component AppWindow inherits Window
                 Rectangle { horizontal-stretch: 1; }
                 Button
                 {
+                    height: 24px;
                     text: "Save review";
                     primary: true;
                     enabled: root.selected-review-trade-id != 0;
@@ -461,7 +466,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Journal" || root.page == "Expectancy": VerticalBox
         {
-            spacing: 4px;
+            spacing: 2px;
             HorizontalBox
             {
                 Rectangle
@@ -513,7 +518,7 @@ export component AppWindow inherits Window
             {
                 spacing: 4px;
                 Text { text: "Expectancy = average of (trade P/L ÷ initial risk)"; color: root.primary; font-size: 17px; }
-                Text { text: "Only is-closed trades with a positive initial risk are included. The Journal buy date range updates all figures above."; color: root.secondary; }
+                Text { text: "Only is-closed trades with a positive initial risk are included. The Journal entry date range updates all figures above."; color: root.secondary; }
                 Text { text: "P/L is the gross price move; initial risk comes from the stoploss or risk percentage. Costs are stored separately."; color: root.secondary; }
                 Rectangle { vertical-stretch: 1; }
             }
@@ -523,7 +528,25 @@ export component AppWindow inherits Window
  *******************************************************************************/
             if root.page == "Journal": journal := VerticalBox
             {
-                spacing: 1px;
+                spacing: 0px;
+                padding: 0px;
+                private property <string> validation-warning:
+                    date-buy.value == "" && date-sell.value == ""
+                        ? "Enter at least one trade date."
+                        : shares-buy.text == "" && shares-sell.text == ""
+                            ? "Enter at least one shares value."
+                            : commission-buy.text == "" && commission-sell.text == ""
+                                ? "Enter at least one commission value."
+                                : tax-buy.text == "" && tax-sell.text == ""
+                                    ? "Enter at least one tax value."
+                                    : trade-side.current-value == "Long" && (date-buy.value == "" || shares-buy.text == "" || commission-buy.text == "" || tax-buy.text == "")
+                                        ? "Long trades need buy date, shares, commission, and tax."
+                                        : trade-side.current-value == "Short" && (date-sell.value == "" || shares-sell.text == "" || commission-sell.text == "" || tax-sell.text == "")
+                                            ? "Short trades need sell date, shares, commission, and tax."
+                                            : date-buy.value != "" && date-sell.value != "" && (shares-buy.text == "" || shares-sell.text == "" || commission-buy.text == "" || commission-sell.text == "" || tax-buy.text == "" || tax-sell.text == "")
+                                                ? "Closed trades need buy and sell shares, commissions, and taxes."
+                                                : "";
+                changed validation-warning => { root.trade-warning = journal.validation-warning; }
                 function refresh-risk-inputs()
                 {
                     if (root.risk-entry-mode == "percent")
@@ -562,15 +585,15 @@ export component AppWindow inherits Window
                                 date-buy.value = "";
                                 date-sell.value = "";
                                 shares-buy.text = "1";
-                                shares-sell.text = "0";
+                                shares-sell.text = "";
                                 price-buy.text = "0";
                                 price-sell.text = "0";
                                 exchange-rate-buy.text = "1";
                                 exchange-rate-sell.text = "1";
                                 commission-buy.text = "0";
                                 tax-buy.text = "0";
-                                commission-sell.text = "0";
-                                tax-sell.text = "0";
+                                commission-sell.text = "";
+                                tax-sell.text = "";
                                 cost-other.text = "0";
                                 risk-percent.text = "";
                                 stoploss.text = "";
@@ -589,7 +612,32 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Side"; color: root.secondary; }
-                        trade-side := ComboBox { width: 90px; model: ["Long", "Short"]; current-value: "Long"; height: 24px; }
+                        trade-side := ComboBox
+                        {
+                            width: 90px;
+                            model: ["Long", "Short"];
+                            current-value: "Long";
+                            height: 24px;
+                            selected(value) =>
+                            {
+                                if root.editing-trade-id == 0
+                                {
+                                    date-buy.value = "";
+                                    date-sell.value = "";
+                                    shares-buy.text = value == "Long" ? "1" : "";
+                                    shares-sell.text = value == "Short" ? "1" : "";
+                                    commission-buy.text = value == "Long" ? "0" : "";
+                                    tax-buy.text = value == "Long" ? "0" : "";
+                                    commission-sell.text = value == "Short" ? "0" : "";
+                                    tax-sell.text = value == "Short" ? "0" : "";
+                                    price-buy.text = "0";
+                                    price-sell.text = "0";
+                                    risk-percent.text = "";
+                                    stoploss.text = "";
+                                    root.risk-entry-mode = "";
+                                }
+                            }
+                        }
                     }
                     VerticalBox
                     {
@@ -609,7 +657,7 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Shares sell"; color: root.secondary; }
-                        shares-sell := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
+                        shares-sell := LineEdit { text: ""; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                 }
                 HorizontalBox
@@ -650,12 +698,12 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Commission sell"; color: root.secondary; }
-                        commission-sell := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
+                        commission-sell := LineEdit { text: ""; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
                         Text { text: "Tax sell"; color: root.secondary; }
-                        tax-sell := LineEdit { text: "0"; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
+                        tax-sell := LineEdit { text: ""; height: 24px; edited(_) => { if (trade-side.current-value == "Short") { journal.refresh-risk-inputs(); } } }
                     }
                     VerticalBox
                     {
@@ -712,15 +760,15 @@ export component AppWindow inherits Window
                                 date-buy.value = "";
                                 date-sell.value = "";
                                 shares-buy.text = "1";
-                                shares-sell.text = "0";
+                                shares-sell.text = "";
                                 price-buy.text = "0";
                                 price-sell.text = "0";
                                 exchange-rate-buy.text = "1";
                                 exchange-rate-sell.text = "1";
                                 commission-buy.text = "0";
                                 tax-buy.text = "0";
-                                commission-sell.text = "0";
-                                tax-sell.text = "0";
+                                commission-sell.text = "";
+                                tax-sell.text = "";
                                 cost-other.text = "0";
                                 risk-percent.text = "";
                                 stoploss.text = "";
@@ -1001,7 +1049,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "Parameter": VerticalBox
         {
-            spacing: 10px;
+            spacing: 8px;
             Text
             {
                 text: root.editing-parameter-id == 0 ? "Add parameter" : "Edit parameter #" + root.editing-parameter-id;
@@ -1084,7 +1132,7 @@ export component AppWindow inherits Window
  *******************************************************************************/
         if root.page == "About": VerticalBox
         {
-            spacing: 9px;
+            spacing: 8px;
             Text { text: "CapitalCommander"; color: root.primary; font-size: 22px; font-weight: 600; }
             Text { text: "Trading journal with a local SQLite database."; color: root.secondary; }
             Rectangle { vertical-stretch: 1; }
@@ -1093,7 +1141,22 @@ export component AppWindow inherits Window
 /*******************************************************************************
  * Log area
  *******************************************************************************/
-        Rectangle { height: 1px; background: root.log; }
-        Text { text: root.status; color: root.log; font-size: 12px; }
+        Rectangle { vertical-stretch: 1; }
+        ScrollView
+        {
+            width: 100%;
+            height: 50px;
+            vertical-scrollbar-policy: always-on;
+            horizontal-scrollbar-policy: always-off;
+            VerticalBox
+            {
+                padding: 3px;
+                spacing: 0px;
+                Rectangle { height: 1px; background: root.log; }
+                Text { text: root.status; color: root.log; font-size: 12px; }
+                if root.page == "Journal" && root.trade-warning != "":
+                    Text { text: root.trade-warning; color: root.log; font-size: 12px; }
+            }
+        }
     }
 }

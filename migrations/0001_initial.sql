@@ -54,14 +54,16 @@ CREATE TABLE t_product (
 
 CREATE TABLE t_trade_cost (
     trade_cost_id INTEGER PRIMARY KEY,
-    commission_buy REAL NOT NULL DEFAULT 0 CHECK (commission_buy >= 0),
-    tax_buy REAL NOT NULL DEFAULT 0 CHECK (tax_buy >= 0),
-    commission_sell REAL NOT NULL DEFAULT 0 CHECK (commission_sell >= 0),
-    tax_sell REAL NOT NULL DEFAULT 0 CHECK (tax_sell >= 0),
+    commission_buy REAL CHECK (commission_buy >= 0),
+    tax_buy REAL CHECK (tax_buy >= 0),
+    commission_sell REAL CHECK (commission_sell >= 0),
+    tax_sell REAL CHECK (tax_sell >= 0),
     other REAL NOT NULL DEFAULT 0 CHECK (other >= 0),
     is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (commission_buy IS NOT NULL OR commission_sell IS NOT NULL),
+    CHECK (tax_buy IS NOT NULL OR tax_sell IS NOT NULL)
 );
 
 CREATE TABLE t_pool(
@@ -109,18 +111,24 @@ CREATE TABLE t_trade (
     trade_cost_id INTEGER NOT NULL UNIQUE REFERENCES t_trade_cost(trade_cost_id),
     trade_review_id INTEGER NOT NULL UNIQUE REFERENCES t_trade_review(trade_review_id),
     pool_id INTEGER NOT NULL UNIQUE REFERENCES t_pool(pool_id),
-    date_buy TEXT NOT NULL,
-    date_sell TEXT,
+    date_buy TEXT CHECK (date_buy IS NULL OR length(trim(date_buy)) > 0),
+    date_sell TEXT CHECK (date_sell IS NULL OR length(trim(date_sell)) > 0),
     is_long INTEGER NOT NULL CHECK (is_long IN (0, 1)),
-    shares_buy INTEGER NOT NULL CHECK (shares_buy > 0),
-    shares_sell INTEGER NOT NULL DEFAULT 0 CHECK (shares_sell >= 0),
+    shares_buy INTEGER CHECK (shares_buy > 0),
+    shares_sell INTEGER CHECK (shares_sell > 0),
     price_buy REAL NOT NULL CHECK (price_buy >= 0),
     price_sell REAL NOT NULL DEFAULT 0 CHECK (price_sell >= 0),
     exchange_rate_buy REAL NOT NULL DEFAULT 1 CHECK (exchange_rate_buy > 0),
     exchange_rate_sell REAL NOT NULL DEFAULT 1 CHECK (exchange_rate_sell > 0),
     is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
     date_created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    date_modified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (date_buy IS NOT NULL OR date_sell IS NOT NULL),
+    CHECK (shares_buy IS NOT NULL OR shares_sell IS NOT NULL),
+    CHECK (date_buy IS NULL OR shares_buy IS NOT NULL),
+    CHECK (date_sell IS NULL OR shares_sell IS NOT NULL),
+    CHECK ((is_long = 1 AND date_buy IS NOT NULL AND shares_buy IS NOT NULL)
+        OR (is_long = 0 AND date_sell IS NOT NULL AND shares_sell IS NOT NULL))
 );
 
 CREATE INDEX idx_trade_product ON t_trade(product_id, date_buy);

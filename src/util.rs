@@ -23,6 +23,32 @@ pub fn validated_as_positive(input: &str, label: &str) -> Result<f64, String>
     Ok(value)
 }
 
+pub fn optional_nonnegative(input: &str, label: &str) -> Result<Option<f64>, String>
+{
+    if input.trim().is_empty()
+    {
+        Ok(None)
+    }
+    else
+    {
+        validated_as_positive(input, label).map(Some)
+    }
+}
+
+pub fn optional_shares(input: &str, label: &str) -> Result<Option<i32>, String>
+{
+    if input.trim().is_empty()
+    {
+        return Ok(None);
+    }
+    let value = input.trim().parse::<i32>().map_err(|_| format!("{label} must be a whole number"))?;
+    if value <= 0
+    {
+        return Err(format!("{label} must be greater than zero"));
+    }
+    Ok(Some(value))
+}
+
 pub fn check_date(input: &str, label: &str, optional: bool) -> Result<(), String>
 {
     if optional && input.is_empty()
