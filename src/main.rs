@@ -1099,6 +1099,8 @@ fn refresh(window: &AppWindow, journal: &Journal)
         trade.currency.clone(),
         trade.shares_buy.clone(),
         trade.shares_sell.clone(),
+        trade.price_buy.clone(),
+        trade.price_sell.clone(),
         trade.tax_buy.clone(),
         trade.tax_sell.clone(),
         trade.commission_buy.clone(),
