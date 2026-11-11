@@ -132,7 +132,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             tax_sell,
             commission_sell,
             trade_type(trade.is_long),
-        ) + trade.cost_other
+        ) - trade.cost_other
     });
     let r_multiple = profit_loss
         .filter(|_| risk_initial > 0.0)
