@@ -421,10 +421,10 @@ fn adds_market_and_uses_it_for_products()
 fn profit_and_loss_totals_include_all_trade_costs()
 {
     // Totals: sale proceeds after 2% tax, less purchase including 1% tax,
-    // less 0.5 and 0.25 commissions, plus 0.4 other cost.
+    // less 0.5 and 0.25 commissions, and 0.4 other cost.
     for (price_sell, expected_profit_loss, expected_total) in [
-        (12.0, 4.0, 2.97),  // 23.52 - 20.2 - 0.75 + 0.4
-        (8.0, -4.0, -4.87), // 15.68 - 20.2 - 0.75 + 0.4
+        (12.0, 4.0, 2.17),  // 23.52 - 20.2 - 0.75 - 0.4
+        (8.0, -4.0, -5.67), // 15.68 - 20.2 - 0.75 - 0.4
     ]
     {
         let mut store = Store::open(Path::new(":memory:")).unwrap();
@@ -496,7 +496,7 @@ fn persists_trade_relations()
     let journal = store.load().unwrap();
     assert_eq!(journal.trades[0].product, "TEST.cfd");
     assert_eq!(journal.trades[0].shares_buy, Some(2));
-    assert!((journal.trades[0].profit_loss_total.unwrap() - 2.116).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total.unwrap() - 1.616).abs() < 1e-10);
     let saved_costs: (f64, f64, f64) = store
         .connection
         .query_row(
@@ -635,8 +635,8 @@ fn stores_short_trade()
     assert_eq!(super::trade_entry_date(&journal.trades[0]), "2026-09-29");
     assert!((journal.trades[0].profit_loss.unwrap() - 4.0).abs() < 1e-10);
     assert!((journal.trades[0].profit_loss_converted.unwrap() - 4.8).abs() < 1e-10);
-    assert!((journal.trades[0].profit_loss_total.unwrap() - 3.656).abs() < 1e-10);
-    assert!((journal.trades[0].profit_loss_total_converted.unwrap() - 4.3872).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total.unwrap() - 3.256).abs() < 1e-10);
+    assert!((journal.trades[0].profit_loss_total_converted.unwrap() - 3.9072).abs() < 1e-10);
     assert!((journal.trades[0].risk_initial - 1.54).abs() < 1e-10);
     assert!((journal.trades[0].r_multiple().unwrap() - 4.0 / 1.54).abs() < 1e-10);
     assert!((journal.pool_value_converted.unwrap()
