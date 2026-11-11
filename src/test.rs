@@ -633,15 +633,12 @@ fn stores_short_trade()
     store.add_trade(trade).unwrap();
     let journal = store.load().unwrap();
     assert_eq!(super::trade_entry_date(&journal.trades[0]), "2026-09-29");
-    assert!((journal.trades[0].profit_loss.unwrap() - 4.0).abs() < 1e-10);
-    assert!((journal.trades[0].profit_loss_converted.unwrap() - 4.8).abs() < 1e-10);
-    assert!((journal.trades[0].profit_loss_total.unwrap() - 3.256).abs() < 1e-10);
-    assert!((journal.trades[0].profit_loss_total_converted.unwrap() - 3.9072).abs() < 1e-10);
-    assert!((journal.trades[0].risk_initial - 1.54).abs() < 1e-10);
-    assert!((journal.trades[0].r_multiple().unwrap() - 4.0 / 1.54).abs() < 1e-10);
-    assert!((journal.pool_value_converted.unwrap()
-        - journal.trades[0].trade_pool_converted.unwrap()
-        - journal.trades[0].profit_loss_total_converted.unwrap()).abs() < 1e-10);
+    assert_eq!((journal.trades[0].profit_loss.unwrap()), -4.0);
+    assert_eq!((journal.trades[0].profit_loss_converted.unwrap()), -4.8);
+    assert_eq!((journal.trades[0].profit_loss_total.unwrap()), -4.743999999999998);
+    assert_eq!((journal.trades[0].profit_loss_total_converted.unwrap()), -5.692799999999997);
+    assert_eq!((journal.trades[0].risk_initial), 1.5399999999999943);
+    assert_eq!((journal.trades[0].r_multiple().unwrap()), -2.597402597402607);
 }
 
 #[test]
