@@ -465,9 +465,16 @@ fn main() -> Result<(), slint::PlatformError>
                     {
                         return Err("Short trades need a sell date".into());
                     }
-                    if !date_buy.is_empty() && !date_sell.is_empty() && date_sell < date_buy
+                    if !date_buy.is_empty() && !date_sell.is_empty()
                     {
-                        return Err("Sell date must be on or after buy date".into());
+                        if is_long && date_sell < date_buy
+                        {
+                            return Err("Sell date must be on or after buy date".into());
+                        }
+                        if !is_long && date_buy < date_sell
+                        {
+                            return Err("Buy date must be on or after sell date".into());
+                        }
                     }
                     let shares_buy = optional_shares(&shares_buy, "Shares buy")?;
                     let shares_sell = optional_shares(&shares_sell, "Shares sell")?;
