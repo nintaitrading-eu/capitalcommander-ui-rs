@@ -118,7 +118,6 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             shares_buy,
             trade.price_sell,
             shares_sell,
-            trade_type(trade.is_long),
         )
     });
     let profit_loss_total = (trade.date_buy.is_some() && trade.date_sell.is_some()).then(|| {
@@ -131,7 +130,6 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             shares_sell,
             tax_sell,
             commission_sell,
-            trade_type(trade.is_long),
         ) - trade.cost_other
     });
     let r_multiple = profit_loss
@@ -149,7 +147,6 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             commission_sell,
             risk_initial,
             pl,
-            trade_type(trade.is_long),
         )
     });
     if risk_actual.is_some() && (!pool_value.is_finite() || pool_value <= 0.0)
