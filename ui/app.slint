@@ -92,10 +92,15 @@ export struct TradeRow
     target-minimum: string,
     target-preferred: string,
     trade-pool: string,
+    trade-pool-converted: string,
     risk-initial: string,
+    risk-initial-converted: string,
     risk-actual: string,
+    risk-actual-converted: string,
     profit: string,
+    profit-converted: string,
     profit-total: string,
+    profit-total-converted: string,
     r: string,
 }
 
@@ -679,10 +684,15 @@ export component AppWindow inherits Window
                     { title: "STOPLOSS (init)", width: 140px },
                     { title: "TARGET (min)", width: 130px },
                     { title: "TARGET (pref)", width: 140px },
+                    { title: "POOL (base)", width: 125px },
                     { title: "RISK (init)", width: 115px },
+                    { title: "RISK (init base)", width: 140px },
                     { title: "RISK (actual)", width: 125px },
+                    { title: "RISK (actual base)", width: 155px },
                     { title: "P/L", width: 105px },
+                    { title: "P/L (base)", width: 120px },
                     { title: "P/L (tot)", width: 105px },
+                    { title: "P/L (tot base)", width: 140px },
                     { title: "R", width: 85px },
                 ];
                 rows: root.review-table-rows;
@@ -828,10 +838,15 @@ export component AppWindow inherits Window
                     { title: "STOPLOSS (init)", width: 140px },
                     { title: "TARGET (min)", width: 130px },
                     { title: "TARGET (pref)", width: 140px },
+                    { title: "POOL (base)", width: 125px },
                     { title: "RISK (init)", width: 115px },
+                    { title: "RISK (init base)", width: 140px },
                     { title: "RISK (actual)", width: 125px },
+                    { title: "RISK (actual base)", width: 155px },
                     { title: "P/L", width: 105px },
+                    { title: "P/L (base)", width: 120px },
                     { title: "P/L (tot)", width: 105px },
+                    { title: "P/L (tot base)", width: 140px },
                     { title: "R", width: 85px },
                 ];
                 rows: root.premarket-table-rows;
@@ -1291,10 +1306,15 @@ export component AppWindow inherits Window
                         { title: "STOPLOSS (init)", width: 140px },
                         { title: "TARGET (min)", width: 130px },
                         { title: "TARGET (pref)", width: 140px },
+                        { title: "POOL (base)", width: 125px },
                         { title: "RISK (init)", width: 115px },
+                        { title: "RISK (init base)", width: 140px },
                         { title: "RISK (actual)", width: 125px },
+                        { title: "RISK (actual base)", width: 155px },
                         { title: "P/L", width: 105px },
+                        { title: "P/L (base)", width: 120px },
                         { title: "P/L (tot)", width: 105px },
+                        { title: "P/L (tot base)", width: 140px },
                         { title: "R", width: 85px },
                     ];
                     rows: root.trade-table-rows;

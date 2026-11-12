@@ -1192,7 +1192,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .collect();
     let total_pl: f64 = is_closed
         .iter()
-        .filter_map(|trade| trade.profit_loss_total)
+        .filter_map(|trade| trade.profit_loss_total_converted)
         .sum();
     window.set_trade_count(is_closed.len().to_string().into());
     window.set_win_rate(
@@ -1290,21 +1290,42 @@ fn refresh(window: &AppWindow, journal: &Journal)
                 .map(|value| value.to_string())
                 .unwrap_or_default()
                 .into(),
+            trade_pool_converted: trade
+                .trade_pool_converted
+                .map(format_table_real)
+                .unwrap_or_default()
+                .into(),
             risk_initial: format_table_real(trade.risk_initial).into(),
+            risk_initial_converted: format_table_real(trade.risk_initial_converted).into(),
             risk_actual: trade
                 .risk_actual
                 .map(format_table_real)
                 .unwrap_or_else(|| "0,00".into())
+                .into(),
+            risk_actual_converted: trade
+                .risk_actual_converted
+                .map(format_table_real)
+                .unwrap_or_default()
                 .into(),
             profit: trade
                 .profit_loss
                 .map(format_table_signed_real)
                 .unwrap_or_else(|| "0,00".into())
                 .into(),
+            profit_converted: trade
+                .profit_loss_converted
+                .map(format_table_signed_real)
+                .unwrap_or_default()
+                .into(),
             profit_total: trade
                 .profit_loss_total
                 .map(format_table_signed_real)
                 .unwrap_or_else(|| "0,00".into())
+                .into(),
+            profit_total_converted: trade
+                .profit_loss_total_converted
+                .map(format_table_signed_real)
+                .unwrap_or_default()
                 .into(),
             r: trade
                 .r_multiple()
@@ -1332,10 +1353,15 @@ fn refresh(window: &AppWindow, journal: &Journal)
         trade.stoploss_initial.clone(),
         trade.target_minimum.clone(),
         trade.target_preferred.clone(),
+        trade.trade_pool_converted.clone(),
         trade.risk_initial.clone(),
+        trade.risk_initial_converted.clone(),
         trade.risk_actual.clone(),
+        trade.risk_actual_converted.clone(),
         trade.profit.clone(),
+        trade.profit_converted.clone(),
         trade.profit_total.clone(),
+        trade.profit_total_converted.clone(),
         trade.r.clone(),
     ]).collect();
     let table_rows = row_values.iter().cloned().map(table_row).collect();
