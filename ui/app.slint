@@ -170,6 +170,8 @@ export component AppWindow inherits Window
     in-out property <int> selected-trade-row: -1;
     in-out property <int> selected-review-trade-id: 0;
     in-out property <int> selected-review-row: -1;
+    private property <int> context-trade-row: -1;
+    private property <Point> context-menu-position;
     in-out property <string> review-text: "";
     in-out property <image> review-image;
     in-out property <bool> review-has-image: false;
@@ -893,9 +895,65 @@ export component AppWindow inherits Window
 /*******************************************************************************
  * Trade journal results
  *******************************************************************************/
-                journal-table := StandardTableView
+                Rectangle
                 {
                     vertical-stretch: 1;
+                    min-height: 200px;
+                    journal-context-menu := PopupWindow
+                    {
+                        x: root.context-menu-position.x;
+                        y: root.context-menu-position.y;
+                        width: 170px;
+                        height: 40px;
+                        close-policy: PopupClosePolicy.close-on-click-outside;
+                        Rectangle
+                        {
+                            width: 100%;
+                            height: 100%;
+                            background: root.surface;
+                            border-color: root.divider;
+                            border-width: 1px;
+                            border-radius: 4px;
+                            Rectangle
+                            {
+                                x: 4px;
+                                y: 4px;
+                                width: parent.width - 8px;
+                                height: parent.height - 8px;
+                                border-radius: 3px;
+                                background: review-menu-item.has-hover ? root.faded : #00000000;
+                                Text
+                                {
+                                    x: 10px;
+                                    width: parent.width - 20px;
+                                    height: 100%;
+                                    text: "Review trade";
+                                    color: root.primary;
+                                    vertical-alignment: center;
+                                }
+                                review-menu-item := TouchArea
+                                {
+                                    width: 100%;
+                                    height: 100%;
+                                    clicked =>
+                                    {
+                                        journal-context-menu.close();
+                                        let row = root.context-trade-row;
+                                        if row < 0 || row >= root.trades.length { return; }
+                                        root.selected-review-row = row;
+                                        root.selected-review-trade-id = root.trades[row].id;
+                                        root.review-text = root.trades[row].review;
+                                        root.select-review-image(root.selected-review-trade-id);
+                                        root.page = "Review";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    journal-table := StandardTableView
+                    {
+                        width: 100%;
+                        height: 100%;
                     columns: [
                         { title: "ID", width: 55px },
                         { title: "PRODUCT", width: 120px },
@@ -923,6 +981,15 @@ export component AppWindow inherits Window
                     ];
                     rows: root.trade-table-rows;
                     current-row: root.selected-trade-row;
+                    row-pointer-event(row, event, position) =>
+                    {
+                        if event.button == PointerEventButton.right && event.kind == PointerEventKind.down
+                        {
+                            root.context-trade-row = row;
+                            root.context-menu-position = position;
+                            journal-context-menu.show();
+                        }
+                    }
                     current-row-changed(row) =>
                     {
                         if row < 0 || row >= root.trades.length || root.trades[row].is-closed
@@ -951,6 +1018,7 @@ export component AppWindow inherits Window
                         stoploss.text = root.trades[row].stoploss-initial;
                         root.risk-entry-mode = root.trades[row].stoploss-initial == "" ? "percent" : "stoploss";
                         root.trade-pool = root.trades[row].trade-pool == "" ? root.current-pool-exact : root.trades[row].trade-pool;
+                    }
                     }
                 }
             }
