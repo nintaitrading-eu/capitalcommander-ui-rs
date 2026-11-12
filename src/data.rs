@@ -859,10 +859,42 @@ fn db_error(error: rusqlite::Error) -> String
     }
 }
 
-pub fn database_path() -> PathBuf
+pub fn database_path() -> Result<PathBuf, String>
 {
-    std::env::args_os()
-        .nth(1)
+    let argument = std::env::args_os().nth(1).map(PathBuf::from);
+    let config_home = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+    let home = std::env::var_os("HOME")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("capitalcommander.sqlite3"))
+        .filter(|path| path.is_absolute())
+        .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from));
+    let path = database_path_from(argument.clone(), config_home, home)?;
+    if argument.is_none()
+    {
+        let directory = path.parent().expect("Default database has a parent directory");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            std::fs::DirBuilder::new().recursive(true).mode(0o700).create(directory)
+                .map_err(|error| format!("Cannot create database directory {}: {error}", directory.display()))?;
+        }
+        #[cfg(not(unix))]
+        std::fs::create_dir_all(directory)
+            .map_err(|error| format!("Cannot create database directory {}: {error}", directory.display()))?;
+    }
+    Ok(path)
+}
+
+pub(crate) fn database_path_from(
+    argument: Option<PathBuf>, config_home: Option<PathBuf>, home: Option<PathBuf>,
+) -> Result<PathBuf, String>
+{
+    if let Some(path) = argument
+    {
+        return Ok(path);
+    }
+    let base = config_home
+        .filter(|path| path.is_absolute())
+        .or_else(|| home.filter(|path| path.is_absolute()).map(|path| path.join(".config")))
+        .ok_or("Cannot locate a home directory for the database")?;
+    Ok(base.join("capitalcommander").join("capitalcommander.sqlite3"))
 }

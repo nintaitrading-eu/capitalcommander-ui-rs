@@ -105,7 +105,10 @@ fn main() -> Result<(), slint::PlatformError>
 {
     /* Setup */
 
-    let database_path = data::database_path();
+    let database_path = data::database_path().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(1);
+    });
     let store = match Store::open(&database_path)
     {
         Ok(store) => store,

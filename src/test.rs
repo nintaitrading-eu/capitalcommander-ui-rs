@@ -2,7 +2,8 @@ use crate::calculatorfinance_lib::trade_type;
 use crate::data::{NewTrade, Store, Trade};
 use crate::check_date;
 use libcalculatorfinance::{calculate_risk_initial, calculate_risk_percentage_initial, calculate_stoploss_initial};
-use std::path::Path;
+use std::path::{Path,PathBuf};
+use crate::data::database_path_from;
 
 #[test]
 fn upgrades_existing_database_to_premarket_schema()
@@ -104,9 +105,10 @@ fn min_target_uses_entry_side_and_hides_incomplete_input()
 {
     let long = crate::min_target(["100", "10", "5", "10"], true).unwrap();
     let short = crate::min_target(["100", "10", "5", "10"], false).unwrap();
-    // Entry cost is 1,050 plus two commissions; proceeds retain 95% after tax.
+    // Long: entry cost is 1,050 plus two commissions; proceeds retain 95% after tax.
+    // Short: entry proceeds are 950 less two commissions; cover costs 105%.
     assert!((long - 1070.0 / 9.5).abs() < 1e-10);
-    assert!((short - 1070.0 / 9.5).abs() < 1e-10);
+    assert!((short - 930.0 / 10.5).abs() < 1e-10);
     assert_eq!(crate::min_target(["", "10", "5", "10"], true), None);
     assert_eq!(crate::min_target(["100", "0", "5", "10"], false), None);
 }
@@ -118,7 +120,7 @@ fn target_uses_initial_risk_for_both_trade_sides()
     let short = crate::target(["100", "10", "5", "10"], "110", false).unwrap();
     // The initial risks at stoploss 90 and 110 are 215 and 225 respectively.
     assert!((long - (1070.0 + 215.0) / 9.5).abs() < 1e-10);
-    assert!((short - (1070.0 + 225.0) / 9.5).abs() < 1e-10);
+    assert!((short - (930.0 - 225.0) / 10.5).abs() < 1e-10);
     assert_eq!(crate::target(["100", "10", "5", "10"], "", true), None);
     assert_eq!(crate::target(["100", "10", "5", "10"], "80", false), None);
 }
@@ -732,8 +734,8 @@ fn stores_short_trade()
     assert_eq!((journal.trades[0].profit_loss_converted.unwrap()), -4.8);
     assert_eq!((journal.trades[0].profit_loss_total.unwrap()), -4.743999999999998);
     assert_eq!((journal.trades[0].profit_loss_total_converted.unwrap()), -5.692799999999997);
-    assert_eq!((journal.trades[0].risk_initial), 1.5399999999999943);
-    assert_eq!((journal.trades[0].r_multiple().unwrap()), -2.597402597402607);
+    assert!((journal.trades[0].risk_initial - 1.5).abs() < 1e-10);
+    assert!((journal.trades[0].r_multiple().unwrap() - (-4.0 / 1.5)).abs() < 1e-10);
 }
 
 #[test]
@@ -935,4 +937,31 @@ fn date_range_accepts_open_ends_and_rejects_invalid_ranges()
     ));
     assert!(!super::date_in_range("2026-09-27", "2026-09-28", ""));
     assert!(!super::date_in_range("2026-09-29", "", "2026-09-28"));
+}
+
+#[test]
+fn uses_xdg_config_home_when_absolute()
+{
+    let config = std::env::temp_dir().join("xdg-config");
+    let home = std::env::temp_dir().join("home");
+    let path = database_path_from(None, Some(config.clone()), Some(home)).unwrap();
+    assert_eq!(path, config.join("capitalcommander/capitalcommander.sqlite3"));
+}
+
+#[test]
+fn defaults_to_home_config_for_empty_or_relative_xdg_config_home()
+{
+    let home = std::env::temp_dir().join("home");
+    let expected = home.join(".config/capitalcommander/capitalcommander.sqlite3");
+    for config in [None, Some(PathBuf::new()), Some(PathBuf::from("relative/config"))]
+    {
+        assert_eq!(database_path_from(None, config, Some(home.clone())).unwrap(), expected);
+    }
+}
+
+#[test]
+fn explicit_database_path_takes_precedence()
+{
+    let requested = PathBuf::from("journal.sqlite3");
+    assert_eq!(database_path_from(Some(requested.clone()), None, None).unwrap(), requested);
 }
