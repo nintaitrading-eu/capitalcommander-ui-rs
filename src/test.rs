@@ -5,6 +5,29 @@ use libcalculatorfinance::{calculate_risk_initial, calculate_risk_percentage_ini
 use std::path::Path;
 
 #[test]
+fn upgrades_existing_reviews_to_image_schema()
+{
+    let path = std::env::temp_dir().join(format!(
+        "capitalcommander-review-migration-{}-{}.sqlite3",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+    ));
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection.execute_batch(include_str!("../migrations/0001_initial.sql")).unwrap();
+    connection.pragma_update(None, "user_version", 1).unwrap();
+    drop(connection);
+
+    let store = Store::open(&path).unwrap();
+    let version: i64 = store.connection.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
+    assert_eq!(version, 2);
+    let columns: Vec<String> = store.connection.prepare("PRAGMA table_info(t_trade_review)").unwrap()
+        .query_map([], |row| row.get(1)).unwrap().map(Result::unwrap).collect();
+    assert!(columns.contains(&"image".to_string()));
+    drop(store);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn table_reals_use_two_decimal_places_and_dot_separator()
 {
     assert_eq!(crate::format_table_real(12.0), "12.00");
@@ -78,6 +101,7 @@ fn valid_r_multiple_requires_positive_risk()
     let mut trade = Trade {
         id: 1,
         review: String::new(),
+        review_image: None,
         product: "A".into(),
         currency: "EUR".into(),
         date_buy: Some("2026-01-01".into()),
@@ -223,6 +247,15 @@ fn saves_entered_stoploss_and_derived_risk()
     store.save_trade_review(trade.id, "Entry followed the plan.\nExit was early.").unwrap();
     assert_eq!(store.load().unwrap().trades[0].review, "Entry followed the plan.\nExit was early.");
     assert!(store.save_trade_review(999, "Unknown trade").is_err());
+    let image = vec![42; 2 * 1024 * 1024];
+    assert!(store.add_trade_review_image(trade.id, &image).is_ok());
+    assert_eq!(store.load().unwrap().trades[0].review_image.as_deref(), Some(image.as_slice()));
+    assert!(store.add_trade_review_image(trade.id, &image).is_err());
+    assert!(store.add_trade_review_image(999, &image).is_err());
+    assert!(store.delete_trade_review_image(trade.id).is_ok());
+    assert!(store.load().unwrap().trades[0].review_image.is_none());
+    assert!(store.delete_trade_review_image(trade.id).is_err());
+    assert!(store.add_trade_review_image(trade.id, &vec![0; 2 * 1024 * 1024 + 1]).is_err());
     let saved: (f64, Option<f64>) = store.connection.query_row(
         "SELECT target_minimum, target_preferred FROM t_trade_calculated",
         [],

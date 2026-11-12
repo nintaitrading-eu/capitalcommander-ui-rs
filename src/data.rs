@@ -3,6 +3,8 @@ use libcalculatorfinance::convert_to_orig;
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 
+pub const MAX_REVIEW_IMAGE_BYTES: usize = 2 * 1024 * 1024;
+
 #[derive(Clone, Debug)]
 pub struct Product
 {
@@ -38,6 +40,7 @@ pub struct Trade
 {
     pub id: i64,
     pub review: String,
+    pub review_image: Option<Vec<u8>>,
     pub product: String,
     pub currency: String,
     pub date_buy: Option<String>,
@@ -136,7 +139,15 @@ impl Store
                 transaction.commit().map_err(db_error)?;
             },
             1 => {},
+            2 => {},
             other => return Err(format!("Unsupported database schema version {other}")),
+        }
+        if version < 2
+        {
+            let transaction = connection.transaction().map_err(db_error)?;
+            transaction.execute_batch(include_str!("../migrations/0002_trade_review_image.sql")).map_err(db_error)?;
+            transaction.pragma_update(None, "user_version", 2).map_err(db_error)?;
+            transaction.commit().map_err(db_error)?;
         }
         Ok(Self { connection })
     }
@@ -229,7 +240,7 @@ impl Store
                     calc.profit_loss_total, calc.profit_loss_total_converted,
                     t.exchange_rate_buy, t.exchange_rate_sell, calc.risk_actual, calc.risk_actual_converted,
                     calc.risk_percent_initial, calc.risk_percent_actual, pool.pool_value, pool.pool_value_converted, calc.stoploss_initial, calc.stoploss_actual,
-                    c.code, calc.target_minimum, calc.target_preferred, COALESCE(review.review, '')
+                    c.code, calc.target_minimum, calc.target_preferred, COALESCE(review.review, ''), review.image
              FROM t_trade t JOIN t_product p ON p.product_id = t.product_id
              JOIN t_currency c ON c.currency_id = p.currency_id
              JOIN t_trade_cost cost ON cost.trade_cost_id = t.trade_cost_id
@@ -244,6 +255,7 @@ impl Store
                 Ok(Trade {
                     id: row.get(0)?,
                     review: row.get(33)?,
+                    review_image: row.get(34)?,
                     product: row.get(1)?,
                     currency: row.get(30)?,
                     date_buy: row.get(2)?,
@@ -304,6 +316,40 @@ impl Store
         if changed == 0
         {
             return Err(format!("Trade #{trade_id} does not exist"));
+        }
+        Ok(())
+    }
+
+    pub fn add_trade_review_image(&mut self, trade_id: i64, image: &[u8]) -> Result<(), String>
+    {
+        if image.len() > MAX_REVIEW_IMAGE_BYTES
+        {
+            return Err("Image must be 2 MB or smaller".into());
+        }
+        let changed = self.connection.execute(
+            "UPDATE t_trade_review SET image = ?1, date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE trade_review_id = (SELECT trade_review_id FROM t_trade WHERE trade_id = ?2 AND is_deleted = 0)
+               AND is_deleted = 0 AND image IS NULL",
+            params![image, trade_id],
+        ).map_err(db_error)?;
+        if changed == 0
+        {
+            return Err(format!("Trade #{trade_id} does not exist or already has an image"));
+        }
+        Ok(())
+    }
+
+    pub fn delete_trade_review_image(&mut self, trade_id: i64) -> Result<(), String>
+    {
+        let changed = self.connection.execute(
+            "UPDATE t_trade_review SET image = NULL, date_modified = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE trade_review_id = (SELECT trade_review_id FROM t_trade WHERE trade_id = ?1 AND is_deleted = 0)
+               AND is_deleted = 0 AND image IS NOT NULL",
+            params![trade_id],
+        ).map_err(db_error)?;
+        if changed == 0
+        {
+            return Err(format!("Trade #{trade_id} does not exist or has no image"));
         }
         Ok(())
     }

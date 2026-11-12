@@ -3,11 +3,11 @@ mod util;
 #[path = "calculatorfinance-lib.rs"]
 mod calculatorfinance_lib;
 
-use data::{Journal, NewTrade, Store, Trade};
+use data::{Journal, NewTrade, Store, Trade, MAX_REVIEW_IMAGE_BYTES};
 use calculatorfinance_lib::{trade_type};
 use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_shares_recommended, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage};
 use util::{check_date, date_in_range, format_number, optional_nonnegative, optional_shares, validated_as_positive};
-use slint::{language::StandardListViewItem, ModelRc, SharedString, VecModel};
+use slint::{language::StandardListViewItem, Image, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -196,6 +196,82 @@ fn main() -> Result<(), slint::PlatformError>
         else
         {
             false
+        }
+    });
+
+    /* Event: Select, add, and delete review image */
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    window.on_select_review_image(move |trade_id|
+    {
+        if let Some(window) = weak.upgrade()
+        {
+            show_review_image(&window, &model.borrow(), trade_id as i64);
+        }
+    });
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_add_review_image(move |trade_id|
+    {
+        let Some(window) = weak.upgrade() else { return; };
+        let review_draft = window.get_review_text();
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp"])
+            .pick_file() else { return; };
+        let result = (|| -> Result<(), String> {
+            let metadata = std::fs::metadata(&path).map_err(|error| format!("Cannot read image: {error}"))?;
+            if metadata.len() > MAX_REVIEW_IMAGE_BYTES as u64
+            {
+                return Err("Image must be 2 MB or smaller".into());
+            }
+            let bytes = std::fs::read(&path).map_err(|error| format!("Cannot read image: {error}"))?;
+            if bytes.len() > MAX_REVIEW_IMAGE_BYTES
+            {
+                return Err("Image must be 2 MB or smaller".into());
+            }
+            Image::load_from_data(&bytes, None).map_err(|_| "Selected file is not a supported image".to_string())?;
+            database.borrow_mut().add_trade_review_image(trade_id as i64, &bytes)?;
+            *model.borrow_mut() = database.borrow().load()?;
+            Ok(())
+        })();
+        match result
+        {
+            Ok(()) =>
+            {
+                refresh(&window, &model.borrow());
+                if window.get_selected_review_trade_id() == trade_id { window.set_review_text(review_draft); }
+                show_review_image(&window, &model.borrow(), trade_id as i64);
+                window.set_status(format!("Image added to trade #{trade_id}").into());
+            }
+            Err(error) => window.set_status(format!("Error: {error}").into()),
+        }
+    });
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_delete_review_image(move |trade_id|
+    {
+        let Some(window) = weak.upgrade() else { return; };
+        let review_draft = window.get_review_text();
+        let result = (|| -> Result<(), String> {
+            database.borrow_mut().delete_trade_review_image(trade_id as i64)?;
+            *model.borrow_mut() = database.borrow().load()?;
+            Ok(())
+        })();
+        match result
+        {
+            Ok(()) =>
+            {
+                refresh(&window, &model.borrow());
+                if window.get_selected_review_trade_id() == trade_id { window.set_review_text(review_draft); }
+                show_review_image(&window, &model.borrow(), trade_id as i64);
+                window.set_status(format!("Image deleted from trade #{trade_id}").into());
+            }
+            Err(error) => window.set_status(format!("Error: {error}").into()),
         }
     });
 
@@ -1129,12 +1205,22 @@ fn refresh(window: &AppWindow, journal: &Journal)
         window.set_selected_review_trade_id(0);
         window.set_review_text("".into());
     }
+    show_review_image(window, journal, window.get_selected_review_trade_id() as i64);
     refresh_trade_costs(
         window,
         journal,
         &window.get_costs_date_from(),
         &window.get_costs_date_to(),
     );
+}
+
+fn show_review_image(window: &AppWindow, journal: &Journal, trade_id: i64)
+{
+    let image = journal.trades.iter()
+        .find(|trade| trade.id == trade_id)
+        .and_then(|trade| trade.review_image.as_deref());
+    window.set_review_has_image(image.is_some());
+    window.set_review_image(image.and_then(|bytes| Image::load_from_data(bytes, None).ok()).unwrap_or_default());
 }
 
 fn validate_date_range(from: &str, to: &str) -> Result<(), String>

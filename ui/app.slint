@@ -171,6 +171,8 @@ export component AppWindow inherits Window
     in-out property <int> selected-review-trade-id: 0;
     in-out property <int> selected-review-row: -1;
     in-out property <string> review-text: "";
+    in-out property <image> review-image;
+    in-out property <bool> review-has-image: false;
     private property <string> trade-pool: root.current-pool-exact;
     private property <string> risk-entry-mode: "";
     in-out property <string> trade-count: "0";
@@ -193,6 +195,9 @@ export component AppWindow inherits Window
 
     callback filter-journal(string, string) -> bool;
     callback save-trade-review(int, string) -> bool;
+    callback select-review-image(int);
+    callback add-review-image(int);
+    callback delete-review-image(int);
     callback filter-trade-costs(string, string) -> bool;
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     pure callback calculate-risk-initial(string, string, string, string, string, string, string, string, string, string) -> string;
@@ -398,13 +403,50 @@ export component AppWindow inherits Window
             }
             TextEdit
             {
-                height: 190px;
+                height: 110px;
                 enabled: root.selected-review-trade-id != 0;
                 text <=> root.review-text;
+            }
+            Text { text: "Image (maximum 2 MB)"; color: root.secondary; }
+            Rectangle
+            {
+                height: 125px;
+                background: root.surface;
+                border-radius: 5px;
+                if root.review-has-image: Image
+                {
+                    width: 100%;
+                    height: 100%;
+                    source: root.review-image;
+                    image-fit: contain;
+                }
+                if !root.review-has-image: Text
+                {
+                    width: 100%;
+                    height: 100%;
+                    text: root.selected-review-trade-id == 0 ? "Select a trade to view its image" : "No image added";
+                    color: root.muted;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
             }
             HorizontalBox
             {
                 Rectangle { horizontal-stretch: 1; }
+                Button
+                {
+                    height: 24px;
+                    text: "Add image";
+                    enabled: root.selected-review-trade-id != 0 && !root.review-has-image;
+                    clicked => { root.add-review-image(root.selected-review-trade-id); }
+                }
+                Button
+                {
+                    height: 24px;
+                    text: "Delete image";
+                    enabled: root.selected-review-trade-id != 0 && root.review-has-image;
+                    clicked => { root.delete-review-image(root.selected-review-trade-id); }
+                }
                 Button
                 {
                     height: 24px;
@@ -454,11 +496,13 @@ export component AppWindow inherits Window
                         root.selected-review-row = -1;
                         root.selected-review-trade-id = 0;
                         root.review-text = "";
+                        root.select-review-image(0);
                         return;
                     }
                     root.selected-review-row = row;
                     root.selected-review-trade-id = root.trades[row].id;
                     root.review-text = root.trades[row].review;
+                    root.select-review-image(root.selected-review-trade-id);
                 }
             }
         }
