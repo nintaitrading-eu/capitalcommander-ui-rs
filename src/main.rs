@@ -121,6 +121,27 @@ fn main() -> Result<(), slint::PlatformError>
     let store = Rc::new(RefCell::new(store));
     let journal = Rc::new(RefCell::new(journal));
     let window = AppWindow::new()?;
+    let image_viewer = ImageViewer::new()?;
+    let viewer_for_open = image_viewer.clone_strong();
+    window.on_open_image(move |image, title|
+    {
+        viewer_for_open.set_displayed_image(image);
+        viewer_for_open.set_image_title(title);
+        viewer_for_open.set_zoom(1.0);
+        viewer_for_open.window().set_fullscreen(true);
+        if let Err(error) = viewer_for_open.show()
+        {
+            eprintln!("Cannot open image viewer: {error}");
+        }
+    });
+    let weak_viewer = image_viewer.as_weak();
+    image_viewer.on_dismiss(move ||
+    {
+        if let Some(viewer) = weak_viewer.upgrade()
+        {
+            let _ = viewer.hide();
+        }
+    });
     
     window.set_source_label(database_path.display().to_string().into());
     set_products(&window, &journal.borrow());

@@ -133,6 +133,54 @@ component FadedTradeRows inherits Rectangle
     }
 }
 
+export component ImageViewer inherits Window
+{
+    title: root.image-title;
+    min-width: 650px;
+    min-height: 300px;
+    preferred-width: 1000px;
+    preferred-height: 700px;
+    full-screen: true;
+    background: #282828;
+    default-font-size: 12px;
+
+    in-out property <image> displayed-image;
+    in-out property <string> image-title;
+    in-out property <float> zoom: 1.0;
+    callback dismiss();
+
+    VerticalBox
+    {
+        padding: 8px;
+        spacing: 8px;
+        HorizontalBox
+        {
+            height: 32px;
+            spacing: 8px;
+            Text { text: root.image-title; color: #ebdbb2; vertical-alignment: center; horizontal-stretch: 1; }
+            Button { text: "-"; enabled: root.zoom > 1.0; clicked => { root.zoom = max(1.0, root.zoom / 1.25); } }
+            Text { text: round(root.zoom * 100) + "%"; color: #d5c4a1; vertical-alignment: center; }
+            Button { text: "+"; enabled: root.zoom < 8.0; clicked => { root.zoom = min(8.0, root.zoom * 1.25); } }
+            Button { text: "Fit"; clicked => { root.zoom = 1.0; } }
+            Button { text: root.full-screen ? "Windowed" : "Full screen"; clicked => { root.full-screen = !root.full-screen; } }
+            Button { text: "Close"; clicked => { root.dismiss(); } }
+        }
+        image-scroll := ScrollView
+        {
+            vertical-stretch: 1;
+            content-width: image-scroll.visible-width * root.zoom;
+            content-height: image-scroll.visible-height * root.zoom;
+            Image
+            {
+                width: image-scroll.content-width;
+                height: image-scroll.content-height;
+                source: root.displayed-image;
+                image-fit: contain;
+            }
+        }
+    }
+}
+
 export struct ProductRow
 {
     name: string,
@@ -253,6 +301,7 @@ export component AppWindow inherits Window
     callback filter-journal(string, string) -> bool;
     callback save-trade-review(int, string) -> bool;
     callback select-review-image(int);
+    callback open-image(image, string);
     callback add-review-image(int);
     callback delete-review-image(int);
     callback save-trade-premarket(int, string) -> bool;
@@ -558,6 +607,13 @@ export component AppWindow inherits Window
                     source: root.review-image;
                     image-fit: contain;
                 }
+                if root.review-has-image: TouchArea
+                {
+                    width: 100%;
+                    height: 100%;
+                    mouse-cursor: pointer;
+                    clicked => { root.open-image(root.review-image, "Review image for trade #" + root.selected-review-trade-id); }
+                }
                 if !root.review-has-image: Text
                 {
                     width: 100%;
@@ -699,6 +755,13 @@ export component AppWindow inherits Window
                     height: 100%;
                     source: root.premarket-image;
                     image-fit: contain;
+                }
+                if root.premarket-has-image: TouchArea
+                {
+                    width: 100%;
+                    height: 100%;
+                    mouse-cursor: pointer;
+                    clicked => { root.open-image(root.premarket-image, "Pre-market image for trade #" + root.selected-premarket-trade-id); }
                 }
                 if !root.premarket-has-image: Text
                 {
