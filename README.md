@@ -22,6 +22,8 @@ Enter buy and sell exchange rates as EUR per unit of the product currency (use 1
 
 Expectancy is the average of each closed trade's gross P/L divided by its positive initial risk. Trades without positive initial risk are omitted. Commission, tax, and other costs are stored in separate `t_trade_cost` columns and deducted for net P/L in the calculated table.
 
+**Trade → Pre-market analysis** uses the same trade list and date filter as Review. Select a trade to save analysis text and an image. Right-click a trade in the Journal, Review, or Pre-market results to jump between the two screens. Open trades also have an **Abandon** action; abandoned trades remain visible in faded rows and are excluded from performance and cost totals.
+
 ## Verify
 
 ```sh

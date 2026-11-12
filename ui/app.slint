@@ -33,10 +33,38 @@ component DateField inherits HorizontalBox
     }
 }
 
+component TradeContextItem inherits Rectangle
+{
+    in property <string> label;
+    in property <color> hover-color;
+    in property <color> foreground;
+    callback activated();
+    height: 32px;
+    border-radius: 3px;
+    background: hit-area.has-hover ? root.hover-color : #00000000;
+    Text
+    {
+        x: 10px;
+        width: parent.width - 20px;
+        height: 100%;
+        text: root.label;
+        color: root.foreground;
+        vertical-alignment: center;
+    }
+    hit-area := TouchArea
+    {
+        width: 100%;
+        height: 100%;
+        clicked => { root.activated(); }
+    }
+}
+
 export struct TradeRow
 {
     id: int,
+    is-deleted: bool,
     review: string,
+    premarket: string,
     is-closed: bool,
     product: string,
     currency: string,
@@ -83,6 +111,26 @@ export struct TradeCostRow
     tax-sell: string,
     other: string,
     total: string,
+}
+
+component FadedTradeRows inherits Rectangle
+{
+    in property <[TradeRow]> trades;
+    in property <length> body-top;
+    in property <length> body-height;
+    in property <length> content-y;
+    in property <length> content-height;
+    y: root.body-top;
+    width: 100%;
+    height: root.body-height;
+    clip: true;
+    for trade[index] in root.trades: Rectangle
+    {
+        y: root.content-y + index * (root.trades.length > 0 ? root.content-height / root.trades.length : 0px);
+        width: 100%;
+        height: root.trades.length > 0 ? root.content-height / root.trades.length : 0px;
+        background: trade.is-deleted ? #282828cc : #00000000;
+    }
 }
 
 export struct ProductRow
@@ -166,15 +214,22 @@ export component AppWindow inherits Window
     in-out property <[TradeRow]> trades;
     in-out property <[[StandardListViewItem]]> trade-table-rows;
     in-out property <[[StandardListViewItem]]> review-table-rows;
+    in-out property <[[StandardListViewItem]]> premarket-table-rows;
     in-out property <int> editing-trade-id: 0;
     in-out property <int> selected-trade-row: -1;
     in-out property <int> selected-review-trade-id: 0;
     in-out property <int> selected-review-row: -1;
+    in-out property <int> selected-premarket-trade-id: 0;
+    in-out property <int> selected-premarket-row: -1;
     private property <int> context-trade-row: -1;
     private property <Point> context-menu-position;
+    private property <int> journal-reset-token: 0;
     in-out property <string> review-text: "";
     in-out property <image> review-image;
     in-out property <bool> review-has-image: false;
+    in-out property <string> premarket-text: "";
+    in-out property <image> premarket-image;
+    in-out property <bool> premarket-has-image: false;
     private property <string> trade-pool: root.current-pool-exact;
     private property <string> risk-entry-mode: "";
     in-out property <string> trade-count: "0";
@@ -200,6 +255,15 @@ export component AppWindow inherits Window
     callback select-review-image(int);
     callback add-review-image(int);
     callback delete-review-image(int);
+    callback save-trade-premarket(int, string) -> bool;
+    callback select-premarket-image(int);
+    callback add-premarket-image(int);
+    callback delete-premarket-image(int);
+    callback abandon-trade(int) -> bool;
+    function clear-journal-form()
+    {
+        root.journal-reset-token += 1;
+    }
     callback filter-trade-costs(string, string) -> bool;
     callback save-trade(int, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) -> bool;
     pure callback calculate-risk-initial(string, string, string, string, string, string, string, string, string, string) -> string;
@@ -212,6 +276,77 @@ export component AppWindow inherits Window
     callback save-market(string, string, string);
     callback save-parameter(int, string, string, string, string, string) -> bool;
     callback quit();
+
+    function open-context-review()
+    {
+        let row = root.context-trade-row;
+        if row < 0 || row >= root.trades.length { return; }
+        root.selected-review-row = row;
+        root.selected-review-trade-id = root.trades[row].id;
+        root.review-text = root.trades[row].review;
+        root.select-review-image(root.selected-review-trade-id);
+        root.page = "Review";
+    }
+
+    function open-context-premarket()
+    {
+        let row = root.context-trade-row;
+        if row < 0 || row >= root.trades.length { return; }
+        root.selected-premarket-row = row;
+        root.selected-premarket-trade-id = root.trades[row].id;
+        root.premarket-text = root.trades[row].premarket;
+        root.select-premarket-image(root.selected-premarket-trade-id);
+        root.page = "Pre-market analysis";
+    }
+
+    trade-context-menu := PopupWindow
+    {
+        x: root.context-menu-position.x;
+        y: root.context-menu-position.y;
+        width: 190px;
+        height: root.context-trade-row >= 0 && root.context-trade-row < root.trades.length
+            && !root.trades[root.context-trade-row].is-closed && !root.trades[root.context-trade-row].is-deleted
+            ? 108px : 76px;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+        Rectangle
+        {
+            width: 100%;
+            height: 100%;
+            background: root.surface;
+            border-color: root.divider;
+            border-width: 1px;
+            border-radius: 4px;
+            TradeContextItem
+            {
+                x: 4px; y: 4px; width: parent.width - 8px;
+                label: "Review trade"; hover-color: root.faded; foreground: root.primary;
+                activated => { trade-context-menu.close(); root.open-context-review(); }
+            }
+            TradeContextItem
+            {
+                x: 4px; y: 36px; width: parent.width - 8px;
+                label: "Pre-market analysis"; hover-color: root.faded; foreground: root.primary;
+                activated => { trade-context-menu.close(); root.open-context-premarket(); }
+            }
+            if root.context-trade-row >= 0 && root.context-trade-row < root.trades.length
+                && !root.trades[root.context-trade-row].is-closed && !root.trades[root.context-trade-row].is-deleted:
+                TradeContextItem
+                {
+                    x: 4px; y: 68px; width: parent.width - 8px;
+                    label: "Abandon"; hover-color: root.faded; foreground: root.primary;
+                    activated =>
+                    {
+                        trade-context-menu.close();
+                        let trade-id = root.trades[root.context-trade-row].id;
+                        let was-editing = root.editing-trade-id == trade-id;
+                        if root.abandon-trade(trade-id) && was-editing
+                        {
+                            root.clear-journal-form();
+                        }
+                    }
+                }
+        }
+    }
 
 /*******************************************************************************
  * Menu
@@ -229,6 +364,7 @@ export component AppWindow inherits Window
             title: "Trade";
             MenuItem { title: "Journal"; activated => { root.page = "Journal"; } }
             MenuItem { title: "Review"; activated => { root.page = "Review"; } }
+            MenuItem { title: "Pre-market analysis"; activated => { root.page = "Pre-market analysis"; } }
         }
         Menu
         {
@@ -258,14 +394,14 @@ export component AppWindow inherits Window
             cross-axis-alignment: center;
             Text { text: root.page; color: root.accent; font-size: 28px; font-weight: 700; }
             Rectangle { horizontal-stretch: 1; }
-            if root.page != "Trade costs" && root.page != "Journal" && root.page != "Review": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
+            if root.page != "Trade costs" && root.page != "Journal" && root.page != "Review" && root.page != "Pre-market analysis": Text { text: root.source-label; color: root.faded; vertical-alignment: center; }
             if root.page == "Journal": Text { width: 170px; font-size: 24px; vertical-alignment: center; color: root.aqua; text: root.current-pool + " " + root.base-currency; }
-            if root.page == "Journal" || root.page == "Review": Text { text: "Entry date"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Journal" || root.page == "Review": DateField { value <=> root.journal-draft-from; }
-            if root.page == "Journal" || root.page == "Review": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
-            if root.page == "Journal" || root.page == "Review": DateField { value <=> root.journal-draft-to; }
-            if root.page == "Journal" || root.page == "Review": Button { height: 24px; text: "Apply"; clicked => { root.filter-journal(root.journal-draft-from, root.journal-draft-to); } }
-            if root.page == "Journal" || root.page == "Review": Button
+            if root.page == "Journal" || root.page == "Review" || root.page == "Pre-market analysis": Text { text: "Entry date"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Journal" || root.page == "Review" || root.page == "Pre-market analysis": DateField { value <=> root.journal-draft-from; }
+            if root.page == "Journal" || root.page == "Review" || root.page == "Pre-market analysis": Text { text: "to"; color: root.secondary; vertical-alignment: center; }
+            if root.page == "Journal" || root.page == "Review" || root.page == "Pre-market analysis": DateField { value <=> root.journal-draft-to; }
+            if root.page == "Journal" || root.page == "Review" || root.page == "Pre-market analysis": Button { height: 24px; text: "Apply"; clicked => { root.filter-journal(root.journal-draft-from, root.journal-draft-to); } }
+            if root.page == "Journal" || root.page == "Review" || root.page == "Pre-market analysis": Button
             {
                 height: 24px;
                 text: "Clear"; clicked =>
@@ -460,9 +596,13 @@ export component AppWindow inherits Window
             }
             Text { text: "Trade journal results"; color: root.primary; font-size: 17px; font-weight: 600; }
             Rectangle { height: 1px; background: root.divider; }
-            StandardTableView
+            Rectangle
             {
                 vertical-stretch: 1;
+                min-height: 200px;
+                review-table := StandardTableView
+                {
+                width: 100%; height: 100%;
                 columns: [
                     { title: "ID", width: 55px },
                     { title: "REVIEW", width: 360px },
@@ -491,6 +631,18 @@ export component AppWindow inherits Window
                 ];
                 rows: root.review-table-rows;
                 current-row: root.selected-review-row;
+                row-pointer-event(row, event, position) =>
+                {
+                    if event.button == PointerEventButton.right && event.kind == PointerEventKind.down
+                    {
+                        root.context-trade-row = row;
+                        root.context-menu-position = {
+                            x: review-table.absolute-position.x + position.x,
+                            y: review-table.absolute-position.y + position.y,
+                        };
+                        trade-context-menu.show();
+                    }
+                }
                 current-row-changed(row) =>
                 {
                     if row < 0 || row >= root.trades.length
@@ -505,6 +657,157 @@ export component AppWindow inherits Window
                     root.selected-review-trade-id = root.trades[row].id;
                     root.review-text = root.trades[row].review;
                     root.select-review-image(root.selected-review-trade-id);
+                }
+                }
+                FadedTradeRows
+                {
+                    trades: root.trades;
+                    body-top: 42px;
+                    body-height: review-table.height - 42px;
+                    content-y: review-table.content-y;
+                    content-height: review-table.content-height;
+                }
+            }
+        }
+
+        if root.page == "Pre-market analysis": VerticalBox
+        {
+            spacing: 8px;
+            Text
+            {
+                text: root.selected-premarket-trade-id == 0
+                    ? "Select a trade in the table to write its pre-market analysis."
+                    : "Pre-market analysis for trade #" + root.selected-premarket-trade-id;
+                color: root.secondary;
+                font-size: 17px;
+            }
+            TextEdit
+            {
+                height: 110px;
+                enabled: root.selected-premarket-trade-id != 0;
+                text <=> root.premarket-text;
+            }
+            Text { text: "Image (maximum 2 MB)"; color: root.secondary; }
+            Rectangle
+            {
+                height: 125px;
+                background: root.surface;
+                border-radius: 5px;
+                if root.premarket-has-image: Image
+                {
+                    width: 100%;
+                    height: 100%;
+                    source: root.premarket-image;
+                    image-fit: contain;
+                }
+                if !root.premarket-has-image: Text
+                {
+                    width: 100%;
+                    height: 100%;
+                    text: root.selected-premarket-trade-id == 0 ? "Select a trade to view its image" : "No image added";
+                    color: root.muted;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            HorizontalBox
+            {
+                Rectangle { horizontal-stretch: 1; }
+                Button
+                {
+                    height: 24px;
+                    text: "Add image";
+                    enabled: root.selected-premarket-trade-id != 0 && !root.premarket-has-image;
+                    clicked => { root.add-premarket-image(root.selected-premarket-trade-id); }
+                }
+                Button
+                {
+                    height: 24px;
+                    text: "Delete image";
+                    enabled: root.selected-premarket-trade-id != 0 && root.premarket-has-image;
+                    clicked => { root.delete-premarket-image(root.selected-premarket-trade-id); }
+                }
+                Button
+                {
+                    height: 24px;
+                    text: "Save analysis";
+                    primary: true;
+                    enabled: root.selected-premarket-trade-id != 0;
+                    clicked => { root.save-trade-premarket(root.selected-premarket-trade-id, root.premarket-text); }
+                }
+            }
+            Text { text: "Trade journal results"; color: root.primary; font-size: 17px; font-weight: 600; }
+            Rectangle { height: 1px; background: root.divider; }
+            Rectangle
+            {
+                vertical-stretch: 1;
+                min-height: 200px;
+                premarket-table := StandardTableView
+                {
+                width: 100%; height: 100%;
+                columns: [
+                    { title: "ID", width: 55px },
+                    { title: "PRE-MARKET", width: 360px },
+                    { title: "PRODUCT", width: 120px },
+                    { title: "SIDE", width: 75px },
+                    { title: "BUY → SELL", width: 205px },
+                    { title: "CURR", width: 80px },
+                    { title: "QTY (b)", width: 90px },
+                    { title: "QTY (s)", width: 90px },
+                    { title: "PRICE (b)", width: 100px },
+                    { title: "PRICE (s)", width: 100px },
+                    { title: "TAX (b)", width: 90px },
+                    { title: "TAX (s)", width: 90px },
+                    { title: "COMM (b)", width: 100px },
+                    { title: "COMM (s)", width: 100px },
+                    { title: "EX (b)", width: 90px },
+                    { title: "EX (s)", width: 90px },
+                    { title: "STOPLOSS (init)", width: 140px },
+                    { title: "TARGET (min)", width: 130px },
+                    { title: "TARGET (pref)", width: 140px },
+                    { title: "RISK (init)", width: 115px },
+                    { title: "RISK (actual)", width: 125px },
+                    { title: "P/L", width: 105px },
+                    { title: "P/L (tot)", width: 105px },
+                    { title: "R", width: 85px },
+                ];
+                rows: root.premarket-table-rows;
+                current-row: root.selected-premarket-row;
+                row-pointer-event(row, event, position) =>
+                {
+                    if event.button == PointerEventButton.right && event.kind == PointerEventKind.down
+                    {
+                        root.context-trade-row = row;
+                        root.context-menu-position = {
+                            x: premarket-table.absolute-position.x + position.x,
+                            y: premarket-table.absolute-position.y + position.y,
+                        };
+                        trade-context-menu.show();
+                    }
+                }
+                current-row-changed(row) =>
+                {
+                    if row < 0 || row >= root.trades.length
+                    {
+                        root.selected-premarket-row = -1;
+                        root.selected-premarket-trade-id = 0;
+                        root.premarket-text = "";
+                        root.select-premarket-image(0);
+                        return;
+                    }
+                    root.selected-premarket-row = row;
+                    root.selected-premarket-trade-id = root.trades[row].id;
+                    root.premarket-text = root.trades[row].premarket;
+                    root.select-premarket-image(root.selected-premarket-trade-id);
+                }
+                }
+                FadedTradeRows
+                {
+                    trades: root.trades;
+                    body-top: 42px;
+                    body-height: premarket-table.height - 42px;
+                    content-y: premarket-table.content-y;
+                    content-height: premarket-table.content-height;
                 }
             }
         }
@@ -578,6 +881,8 @@ export component AppWindow inherits Window
             {
                 spacing: 0px;
                 padding: 0px;
+                private property <int> reset-token: root.journal-reset-token;
+                changed reset-token => { journal.reset-inputs(); }
                 private property <string> validation-warning:
                     date-buy.value == "" && date-sell.value == ""
                         ? "Enter at least one trade date."
@@ -615,6 +920,29 @@ export component AppWindow inherits Window
                                 stoploss.text, root.trade-pool, trade-side.current-value);
                     }
                 }
+                function reset-inputs()
+                {
+                    root.editing-trade-id = 0;
+                    root.selected-trade-row = -1;
+                    trade-side.current-value = "Long";
+                    date-buy.value = "";
+                    date-sell.value = "";
+                    shares-buy.text = "1";
+                    shares-sell.text = "";
+                    price-buy.text = "0";
+                    price-sell.text = "0";
+                    exchange-rate-buy.text = "1";
+                    exchange-rate-sell.text = "1";
+                    commission-buy.text = "0";
+                    tax-buy.text = "0";
+                    commission-sell.text = "";
+                    tax-sell.text = "";
+                    cost-other.text = "0";
+                    risk-percent.text = "";
+                    stoploss.text = "";
+                    root.risk-entry-mode = "";
+                    root.trade-pool = root.current-pool-exact;
+                }
                 HorizontalBox
                 {
                     Text { text: root.editing-trade-id == 0 ? "Log trade" : "Edit trade #" + root.editing-trade-id; color: root.accent; font-size: 16px; font-weight: 600; }
@@ -625,29 +953,7 @@ export component AppWindow inherits Window
                             text: "New trade";
                             height: 24px;
                             primary: true;
-                            clicked =>
-                            {
-                                root.editing-trade-id = 0;
-                                root.selected-trade-row = -1;
-                                trade-side.current-value = "Long";
-                                date-buy.value = "";
-                                date-sell.value = "";
-                                shares-buy.text = "1";
-                                shares-sell.text = "";
-                                price-buy.text = "0";
-                                price-sell.text = "0";
-                                exchange-rate-buy.text = "1";
-                                exchange-rate-sell.text = "1";
-                                commission-buy.text = "0";
-                                tax-buy.text = "0";
-                                commission-sell.text = "";
-                                tax-sell.text = "";
-                                cost-other.text = "0";
-                                risk-percent.text = "";
-                                stoploss.text = "";
-                                root.risk-entry-mode = "";
-                                root.trade-pool = root.current-pool-exact;
-                          }
+                            clicked => { journal.reset-inputs(); }
                        }
                 }
                 HorizontalBox
@@ -899,57 +1205,6 @@ export component AppWindow inherits Window
                 {
                     vertical-stretch: 1;
                     min-height: 200px;
-                    journal-context-menu := PopupWindow
-                    {
-                        x: root.context-menu-position.x;
-                        y: root.context-menu-position.y;
-                        width: 170px;
-                        height: 40px;
-                        close-policy: PopupClosePolicy.close-on-click-outside;
-                        Rectangle
-                        {
-                            width: 100%;
-                            height: 100%;
-                            background: root.surface;
-                            border-color: root.divider;
-                            border-width: 1px;
-                            border-radius: 4px;
-                            Rectangle
-                            {
-                                x: 4px;
-                                y: 4px;
-                                width: parent.width - 8px;
-                                height: parent.height - 8px;
-                                border-radius: 3px;
-                                background: review-menu-item.has-hover ? root.faded : #00000000;
-                                Text
-                                {
-                                    x: 10px;
-                                    width: parent.width - 20px;
-                                    height: 100%;
-                                    text: "Review trade";
-                                    color: root.primary;
-                                    vertical-alignment: center;
-                                }
-                                review-menu-item := TouchArea
-                                {
-                                    width: 100%;
-                                    height: 100%;
-                                    clicked =>
-                                    {
-                                        journal-context-menu.close();
-                                        let row = root.context-trade-row;
-                                        if row < 0 || row >= root.trades.length { return; }
-                                        root.selected-review-row = row;
-                                        root.selected-review-trade-id = root.trades[row].id;
-                                        root.review-text = root.trades[row].review;
-                                        root.select-review-image(root.selected-review-trade-id);
-                                        root.page = "Review";
-                                    }
-                                }
-                            }
-                        }
-                    }
                     journal-table := StandardTableView
                     {
                         width: 100%;
@@ -986,13 +1241,16 @@ export component AppWindow inherits Window
                         if event.button == PointerEventButton.right && event.kind == PointerEventKind.down
                         {
                             root.context-trade-row = row;
-                            root.context-menu-position = position;
-                            journal-context-menu.show();
+                            root.context-menu-position = {
+                                x: journal-table.absolute-position.x + position.x,
+                                y: journal-table.absolute-position.y + position.y,
+                            };
+                            trade-context-menu.show();
                         }
                     }
                     current-row-changed(row) =>
                     {
-                        if row < 0 || row >= root.trades.length || root.trades[row].is-closed
+                        if row < 0 || row >= root.trades.length || root.trades[row].is-closed || root.trades[row].is-deleted
                         {
                             journal-table.current-row = root.selected-trade-row;
                             return;
@@ -1019,6 +1277,14 @@ export component AppWindow inherits Window
                         root.risk-entry-mode = root.trades[row].stoploss-initial == "" ? "percent" : "stoploss";
                         root.trade-pool = root.trades[row].trade-pool == "" ? root.current-pool-exact : root.trades[row].trade-pool;
                     }
+                    }
+                    FadedTradeRows
+                    {
+                        trades: root.trades;
+                        body-top: 42px;
+                        body-height: journal-table.height - 42px;
+                        content-y: journal-table.content-y;
+                        content-height: journal-table.content-height;
                     }
                 }
             }

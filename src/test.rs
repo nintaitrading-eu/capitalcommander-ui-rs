@@ -5,7 +5,7 @@ use libcalculatorfinance::{calculate_risk_initial, calculate_risk_percentage_ini
 use std::path::Path;
 
 #[test]
-fn upgrades_existing_reviews_to_image_schema()
+fn upgrades_existing_database_to_premarket_schema()
 {
     let path = std::env::temp_dir().join(format!(
         "capitalcommander-review-migration-{}-{}.sqlite3",
@@ -14,15 +14,54 @@ fn upgrades_existing_reviews_to_image_schema()
     ));
     let connection = rusqlite::Connection::open(&path).unwrap();
     connection.execute_batch(include_str!("../migrations/0001_initial.sql")).unwrap();
+    connection.execute_batch(
+        "INSERT INTO t_trade_cost(commission_buy, tax_buy) VALUES (0, 0);
+         INSERT INTO t_trade_calculated DEFAULT VALUES;
+         INSERT INTO t_trade_review DEFAULT VALUES;
+         INSERT INTO t_trade(trade_calculated_id, product_id, trade_cost_id, trade_review_id, pool_id,
+                             date_buy, is_long, shares_buy, price_buy)
+         VALUES (1, 1, 1, 1, 1, '2026-01-01', 1, 1, 1);"
+    ).unwrap();
     connection.pragma_update(None, "user_version", 1).unwrap();
     drop(connection);
 
     let store = Store::open(&path).unwrap();
     let version: i64 = store.connection.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     let columns: Vec<String> = store.connection.prepare("PRAGMA table_info(t_trade_review)").unwrap()
         .query_map([], |row| row.get(1)).unwrap().map(Result::unwrap).collect();
     assert!(columns.contains(&"image".to_string()));
+    let premarket_columns: Vec<String> = store.connection.prepare("PRAGMA table_info(t_trade_premarket)").unwrap()
+        .query_map([], |row| row.get(1)).unwrap().map(Result::unwrap).collect();
+    assert!(premarket_columns.contains(&"analysis".to_string()));
+    assert!(premarket_columns.contains(&"image".to_string()));
+    assert_eq!(store.load().unwrap().trades[0].premarket, "");
+    let linked_trade: i64 = store.connection.query_row(
+        "SELECT trade_id FROM t_trade_premarket", [], |row| row.get(0)
+    ).unwrap();
+    assert_eq!(linked_trade, 1);
+    drop(store);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn upgrades_version_two_database_to_premarket_schema()
+{
+    let path = std::env::temp_dir().join(format!(
+        "capitalcommander-premarket-migration-{}-{}.sqlite3",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+    ));
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection.execute_batch(include_str!("../migrations/0001_initial.sql")).unwrap();
+    connection.execute_batch(include_str!("../migrations/0002_trade_review_image.sql")).unwrap();
+    connection.pragma_update(None, "user_version", 2).unwrap();
+    drop(connection);
+
+    let store = Store::open(&path).unwrap();
+    let version: i64 = store.connection.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
+    assert_eq!(version, 3);
+    store.connection.prepare("SELECT analysis, image FROM t_trade_premarket").unwrap();
     drop(store);
     std::fs::remove_file(path).unwrap();
 }
@@ -100,8 +139,11 @@ fn valid_r_multiple_requires_positive_risk()
 {
     let mut trade = Trade {
         id: 1,
+        is_deleted: false,
         review: String::new(),
         review_image: None,
+        premarket: String::new(),
+        premarket_image: None,
         product: "A".into(),
         currency: "EUR".into(),
         date_buy: Some("2026-01-01".into()),
@@ -256,6 +298,25 @@ fn saves_entered_stoploss_and_derived_risk()
     assert!(store.load().unwrap().trades[0].review_image.is_none());
     assert!(store.delete_trade_review_image(trade.id).is_err());
     assert!(store.add_trade_review_image(trade.id, &vec![0; 2 * 1024 * 1024 + 1]).is_err());
+    store.save_trade_premarket(trade.id, "Wait for the opening range.").unwrap();
+    assert_eq!(store.load().unwrap().trades[0].premarket, "Wait for the opening range.");
+    assert!(store.save_trade_premarket(999, "Unknown trade").is_err());
+    assert!(store.add_trade_premarket_image(trade.id, &image).is_ok());
+    assert_eq!(store.load().unwrap().trades[0].premarket_image.as_deref(), Some(image.as_slice()));
+    assert!(store.add_trade_premarket_image(trade.id, &image).is_err());
+    assert!(store.delete_trade_premarket_image(trade.id).is_ok());
+    assert!(store.load().unwrap().trades[0].premarket_image.is_none());
+    assert!(store.delete_trade_premarket_image(trade.id).is_err());
+    assert!(store.add_trade_premarket_image(trade.id, &vec![0; 2 * 1024 * 1024 + 1]).is_err());
+    store.abandon_trade(trade.id).unwrap();
+    assert!(store.load().unwrap().trades[0].is_deleted);
+    let deleted: i64 = store.connection.query_row(
+        "SELECT is_deleted FROM t_trade WHERE trade_id = ?1", [trade.id], |row| row.get(0)
+    ).unwrap();
+    assert_eq!(deleted, 1);
+    assert!(store.abandon_trade(trade.id).is_err());
+    store.save_trade_premarket(trade.id, "Skipped after the open.").unwrap();
+    assert_eq!(store.load().unwrap().trades[0].premarket, "Skipped after the open.");
     let saved: (f64, Option<f64>) = store.connection.query_row(
         "SELECT target_minimum, target_preferred FROM t_trade_calculated",
         [],
@@ -630,6 +691,7 @@ fn closes_an_existing_trade_without_changing_its_id()
         stoploss_initial: Some(9.0),
     };
     assert!(store.update_trade(id, closed_trade).is_err());
+    assert!(store.abandon_trade(id).is_err());
     assert_eq!(store.load().unwrap().pool_value_converted, pool_after_close);
 }
 

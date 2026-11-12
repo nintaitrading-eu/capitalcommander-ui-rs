@@ -147,7 +147,9 @@ fn main() -> Result<(), slint::PlatformError>
                     window.set_journal_date_to(to);
                     refresh(&window, &model.borrow());
                     window.set_status(
-                        if window.get_page() == "Review" { "Trade review updated" } else { "Trade journal updated" }.into()
+                        if window.get_page() == "Review" { "Trade review updated" }
+                        else if window.get_page() == "Pre-market analysis" { "Pre-market analysis updated" }
+                        else { "Trade journal updated" }.into()
                     );
                     true
                 }
@@ -272,6 +274,136 @@ fn main() -> Result<(), slint::PlatformError>
                 window.set_status(format!("Image deleted from trade #{trade_id}").into());
             }
             Err(error) => window.set_status(format!("Error: {error}").into()),
+        }
+    });
+
+    /* Event: Save pre-market analysis */
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_save_trade_premarket(move |trade_id, analysis|
+    {
+        let Some(window) = weak.upgrade() else { return false; };
+        let result = (|| -> Result<(), String> {
+            database.borrow_mut().save_trade_premarket(trade_id as i64, &analysis)?;
+            *model.borrow_mut() = database.borrow().load()?;
+            Ok(())
+        })();
+        match result
+        {
+            Ok(()) =>
+            {
+                refresh(&window, &model.borrow());
+                window.set_status(format!("Pre-market analysis saved for trade #{trade_id}").into());
+                true
+            }
+            Err(error) =>
+            {
+                window.set_status(error.into());
+                false
+            }
+        }
+    });
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    window.on_select_premarket_image(move |trade_id|
+    {
+        if let Some(window) = weak.upgrade()
+        {
+            show_premarket_image(&window, &model.borrow(), trade_id as i64);
+        }
+    });
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_add_premarket_image(move |trade_id|
+    {
+        let Some(window) = weak.upgrade() else { return; };
+        let analysis_draft = window.get_premarket_text();
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Images", &["png", "jpg", "jpeg", "gif", "bmp", "webp"])
+            .pick_file() else { return; };
+        let result = (|| -> Result<(), String> {
+            let metadata = std::fs::metadata(&path).map_err(|error| format!("Cannot read image: {error}"))?;
+            if metadata.len() > MAX_REVIEW_IMAGE_BYTES as u64
+            {
+                return Err("Image must be 2 MB or smaller".into());
+            }
+            let bytes = std::fs::read(&path).map_err(|error| format!("Cannot read image: {error}"))?;
+            Image::load_from_data(&bytes, None).map_err(|_| "Selected file is not a supported image".to_string())?;
+            database.borrow_mut().add_trade_premarket_image(trade_id as i64, &bytes)?;
+            *model.borrow_mut() = database.borrow().load()?;
+            Ok(())
+        })();
+        match result
+        {
+            Ok(()) =>
+            {
+                refresh(&window, &model.borrow());
+                if window.get_selected_premarket_trade_id() == trade_id { window.set_premarket_text(analysis_draft); }
+                show_premarket_image(&window, &model.borrow(), trade_id as i64);
+                window.set_status(format!("Pre-market image added to trade #{trade_id}").into());
+            }
+            Err(error) => window.set_status(format!("Error: {error}").into()),
+        }
+    });
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_delete_premarket_image(move |trade_id|
+    {
+        let Some(window) = weak.upgrade() else { return; };
+        let analysis_draft = window.get_premarket_text();
+        let result = (|| -> Result<(), String> {
+            database.borrow_mut().delete_trade_premarket_image(trade_id as i64)?;
+            *model.borrow_mut() = database.borrow().load()?;
+            Ok(())
+        })();
+        match result
+        {
+            Ok(()) =>
+            {
+                refresh(&window, &model.borrow());
+                if window.get_selected_premarket_trade_id() == trade_id { window.set_premarket_text(analysis_draft); }
+                show_premarket_image(&window, &model.borrow(), trade_id as i64);
+                window.set_status(format!("Pre-market image deleted from trade #{trade_id}").into());
+            }
+            Err(error) => window.set_status(format!("Error: {error}").into()),
+        }
+    });
+
+    let weak = window.as_weak();
+    let model = journal.clone();
+    let database = store.clone();
+    window.on_abandon_trade(move |trade_id|
+    {
+        let Some(window) = weak.upgrade() else { return false; };
+        let result = (|| -> Result<(), String> {
+            database.borrow_mut().abandon_trade(trade_id as i64)?;
+            *model.borrow_mut() = database.borrow().load()?;
+            Ok(())
+        })();
+        match result
+        {
+            Ok(()) =>
+            {
+                if window.get_editing_trade_id() == trade_id
+                {
+                    window.set_editing_trade_id(0);
+                    window.set_selected_trade_row(-1);
+                }
+                refresh(&window, &model.borrow());
+                window.set_status(format!("Trade #{trade_id} abandoned").into());
+                true
+            }
+            Err(error) =>
+            {
+                window.set_status(error.into());
+                false
+            }
         }
     });
 
@@ -1024,7 +1156,7 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .collect();
     let is_closed: Vec<_> = selected
         .iter()
-        .filter(|trade| trade.profit_loss.is_some())
+        .filter(|trade| !trade.is_deleted && trade.profit_loss.is_some())
         .collect();
     let wins = is_closed
         .iter()
@@ -1069,8 +1201,10 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .rev()
         .map(|trade| TradeRow {
             id: trade.id as i32,
+            is_deleted: trade.is_deleted,
             review: trade.review.clone().into(),
-            is_closed: trade.profit_loss.is_some(),
+            premarket: trade.premarket.clone().into(),
+            is_closed: trade.date_buy.is_some() && trade.date_sell.is_some(),
             product: trade.product.clone().into(),
             currency: match trade.currency.as_str()
             {
@@ -1181,13 +1315,17 @@ fn refresh(window: &AppWindow, journal: &Journal)
         trade.r.clone(),
     ]).collect();
     let table_rows = row_values.iter().cloned().map(table_row).collect();
-    let review_table_rows = rows.iter().zip(row_values).map(|(trade, mut values)| {
+    let review_table_rows = rows.iter().zip(row_values.iter().cloned()).map(|(trade, mut values)| {
         values.insert(1, review_preview(&trade.review).into());
+        table_row(values)
+    }).collect();
+    let premarket_table_rows = rows.iter().zip(row_values.iter().cloned()).map(|(trade, mut values)| {
+        values.insert(1, review_preview(&trade.premarket).into());
         table_row(values)
     }).collect();
     let editing_trade_id = window.get_editing_trade_id();
     let selected_row = rows.iter()
-        .position(|trade| trade.id == editing_trade_id && !trade.is_closed)
+        .position(|trade| trade.id == editing_trade_id && !trade.is_closed && !trade.is_deleted)
         .map(|index| index as i32)
         .unwrap_or(-1);
     let selected_review_id = window.get_selected_review_trade_id();
@@ -1195,17 +1333,30 @@ fn refresh(window: &AppWindow, journal: &Journal)
         .position(|trade| trade.id == selected_review_id)
         .map(|index| index as i32)
         .unwrap_or(-1);
+    let selected_premarket_id = window.get_selected_premarket_trade_id();
+    let selected_premarket_row = rows.iter()
+        .position(|trade| trade.id == selected_premarket_id)
+        .map(|index| index as i32)
+        .unwrap_or(-1);
     window.set_trade_table_rows(table_rows_model(table_rows));
     window.set_review_table_rows(table_rows_model(review_table_rows));
+    window.set_premarket_table_rows(table_rows_model(premarket_table_rows));
     window.set_trades(ModelRc::from(Rc::new(VecModel::from(rows))));
     window.set_selected_trade_row(selected_row);
     window.set_selected_review_row(selected_review_row);
+    window.set_selected_premarket_row(selected_premarket_row);
     if selected_review_row < 0
     {
         window.set_selected_review_trade_id(0);
         window.set_review_text("".into());
     }
     show_review_image(window, journal, window.get_selected_review_trade_id() as i64);
+    if selected_premarket_row < 0
+    {
+        window.set_selected_premarket_trade_id(0);
+        window.set_premarket_text("".into());
+    }
+    show_premarket_image(window, journal, window.get_selected_premarket_trade_id() as i64);
     refresh_trade_costs(
         window,
         journal,
@@ -1221,6 +1372,15 @@ fn show_review_image(window: &AppWindow, journal: &Journal, trade_id: i64)
         .and_then(|trade| trade.review_image.as_deref());
     window.set_review_has_image(image.is_some());
     window.set_review_image(image.and_then(|bytes| Image::load_from_data(bytes, None).ok()).unwrap_or_default());
+}
+
+fn show_premarket_image(window: &AppWindow, journal: &Journal, trade_id: i64)
+{
+    let image = journal.trades.iter()
+        .find(|trade| trade.id == trade_id)
+        .and_then(|trade| trade.premarket_image.as_deref());
+    window.set_premarket_has_image(image.is_some());
+    window.set_premarket_image(image.and_then(|bytes| Image::load_from_data(bytes, None).ok()).unwrap_or_default());
 }
 
 fn validate_date_range(from: &str, to: &str) -> Result<(), String>
@@ -1239,7 +1399,7 @@ fn refresh_trade_costs(window: &AppWindow, journal: &Journal, from: &str, to: &s
     let selected: Vec<_> = journal
         .trades
         .iter()
-        .filter(|trade| date_in_range(trade_entry_date(trade), from, to))
+        .filter(|trade| !trade.is_deleted && date_in_range(trade_entry_date(trade), from, to))
         .collect();
     let sum = |cost: fn(&Trade) -> f64| -> f64 { selected.iter().map(|trade| cost(trade)).sum() };
     let commission_buy = sum(|trade| trade.commission_buy.unwrap_or_default());
