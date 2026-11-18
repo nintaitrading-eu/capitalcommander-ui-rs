@@ -919,6 +919,14 @@ fn main() -> Result<(), slint::PlatformError>
         },
     );
 
+    let model = journal.clone();
+    window.on_product_index(move |name| {
+        model.borrow().products.iter()
+            .position(|product| product.name == name.as_str())
+            .map(|index| index as i32)
+            .unwrap_or(-1)
+    });
+
     /* Event: on_save_product */
 
     let weak = window.as_weak();
@@ -1030,7 +1038,11 @@ fn main() -> Result<(), slint::PlatformError>
 fn set_products(window: &AppWindow, journal: &Journal)
 {
     let products: Vec<_> = journal.products.iter().map(|p| p.name.clone()).collect();
+    let product_labels: Vec<_> = journal.products.iter()
+        .map(|p| format!("{} (x{})", p.name, p.tick * p.tick_value))
+        .collect();
     window.set_products(strings(products));
+    window.set_product_labels(strings(product_labels));
     let details: Vec<_> = journal
         .products
         .iter()

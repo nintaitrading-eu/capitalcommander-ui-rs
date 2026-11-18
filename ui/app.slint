@@ -250,6 +250,7 @@ export component AppWindow inherits Window
     private property <string> journal-draft-from: "";
     private property <string> journal-draft-to: "";
     in-out property <[string]> products;
+    in-out property <[string]> product-labels;
     in-out property <[ProductRow]> product-details;
     in-out property <[[StandardListViewItem]]> product-table-rows;
     in-out property <[string]> market-codes;
@@ -327,6 +328,7 @@ export component AppWindow inherits Window
     pure callback calculate-target(string, string, string, string, string, string, string, string, string, string, string) -> string;
     pure callback calculate-risk-percentage-initial(string, string, string, string, string, string, string, string, string, string, string, string) -> string;
     callback save-product(string, string, string, string, string, string);
+    callback product-index(string) -> int;
     callback save-market(string, string, string);
     callback save-parameter(int, string, string, string, string, string) -> bool;
     callback quit();
@@ -986,7 +988,7 @@ export component AppWindow inherits Window
                             ? ""
                             : root.calculate-stoploss-initial(
                                 root.trade-pool, risk-percent.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
-                                commission-buy.text, commission-sell.text, tax-buy.text, tax-sell.text, trade-side.current-value, trade-product.current-value);
+                                commission-buy.text, commission-sell.text, tax-buy.text, tax-sell.text, trade-side.current-value, journal.selected-product());
                     }
                     else if (root.risk-entry-mode == "stoploss")
                     {
@@ -995,8 +997,14 @@ export component AppWindow inherits Window
                             : root.calculate-risk-percentage-initial(
                                 price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text,
                                 price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text,
-                                stoploss.text, root.trade-pool, trade-side.current-value, trade-product.current-value);
+                                stoploss.text, root.trade-pool, trade-side.current-value, journal.selected-product());
                     }
+                }
+                function selected-product() -> string
+                {
+                    return trade-product.current-index >= 0 && trade-product.current-index < root.products.length
+                        ? root.products[trade-product.current-index]
+                        : "";
                 }
                 function reset-inputs()
                 {
@@ -1039,7 +1047,7 @@ export component AppWindow inherits Window
                     VerticalBox
                     {
                         Text { text: "Product"; color: root.secondary;}
-                        trade-product := ComboBox { width: 180px; model: root.products; height: 24px; }
+                        trade-product := ComboBox { width: 220px; model: root.product-labels; height: 24px; }
                     }
                     VerticalBox
                     {
@@ -1181,7 +1189,7 @@ export component AppWindow inherits Window
                         primary: true;
                         clicked =>
                         {
-                            if root.save-trade(root.editing-trade-id, trade-product.current-value, trade-side.current-value,
+                            if root.save-trade(root.editing-trade-id, journal.selected-product(), trade-side.current-value,
                                 date-buy.value, date-sell.value, shares-buy.text, shares-sell.text, price-buy.text,
                                 price-sell.text, exchange-rate-buy.text, exchange-rate-sell.text, commission-buy.text, tax-buy.text, commission-sell.text, tax-sell.text, cost-other.text,
                                 risk-percent.text, stoploss.text, root.trade-pool)
@@ -1223,7 +1231,7 @@ export component AppWindow inherits Window
                     {
                         text: root.calculate-shares-recommended(
                             root.trade-pool, commission-buy.text, tax-buy.text, price-buy.text,
-                            commission-sell.text, tax-sell.text, price-sell.text, trade-side.current-value, trade-product.current-value);
+                            commission-sell.text, tax-sell.text, price-sell.text, trade-side.current-value, journal.selected-product());
                         color: root.aqua;
                     }
                     Text
@@ -1237,7 +1245,7 @@ export component AppWindow inherits Window
                             ? "0.0"
                             : root.calculate-risk-initial(
                                 stoploss.text, price-buy.text, price-sell.text, shares-buy.text, shares-sell.text,
-                                commission-buy.text, commission-sell.text, tax-buy.text, tax-sell.text, trade-side.current-value, trade-product.current-value).to-float().to-fixed(2);
+                                commission-buy.text, commission-sell.text, tax-buy.text, tax-sell.text, trade-side.current-value, journal.selected-product()).to-float().to-fixed(2);
                         color: root.aqua;
                     }
                     Text { text: "Risk %"; color: root.secondary; }
@@ -1262,7 +1270,7 @@ export component AppWindow inherits Window
                         text: root.calculate-min-target(
                             price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text,
                             price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text,
-                            trade-side.current-value, trade-product.current-value);
+                            trade-side.current-value, journal.selected-product());
                         color: root.aqua;
                     }
                     Text { text: "Target"; color: root.secondary; }
@@ -1271,7 +1279,7 @@ export component AppWindow inherits Window
                         text: root.calculate-target(
                             price-buy.text, shares-buy.text, tax-buy.text, commission-buy.text,
                             price-sell.text, shares-sell.text, tax-sell.text, commission-sell.text,
-                            stoploss.text, trade-side.current-value, trade-product.current-value);
+                            stoploss.text, trade-side.current-value, journal.selected-product());
                         color: root.aqua;
                     }
                 }
@@ -1340,7 +1348,7 @@ export component AppWindow inherits Window
                         }
                         root.selected-trade-row = row;
                         root.editing-trade-id = root.trades[row].id;
-                        trade-product.current-value = root.trades[row].product;
+                        trade-product.current-index = root.product-index(root.trades[row].product);
                         trade-side.current-value = root.trades[row].side;
                         date-buy.value = root.trades[row].date-buy;
                         date-sell.value = root.trades[row].date-sell;
