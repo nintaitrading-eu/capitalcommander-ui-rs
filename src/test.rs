@@ -103,33 +103,33 @@ fn review_preview_truncates_only_after_50_characters()
 #[test]
 fn min_target_uses_entry_side_and_hides_incomplete_input()
 {
-    let long = crate::min_target(["100", "10", "5", "10"], true).unwrap();
-    let short = crate::min_target(["100", "10", "5", "10"], false).unwrap();
+    let long = crate::min_target(["100", "10", "5", "10"], true, 1.0).unwrap();
+    let short = crate::min_target(["100", "10", "5", "10"], false, 1.0).unwrap();
     // Long: entry cost is 1,050 plus two commissions; proceeds retain 95% after tax.
     // Short: entry proceeds are 950 less two commissions; cover costs 105%.
     assert!((long - 1070.0 / 9.5).abs() < 1e-10);
     assert!((short - 930.0 / 10.5).abs() < 1e-10);
-    assert_eq!(crate::min_target(["", "10", "5", "10"], true), None);
-    assert_eq!(crate::min_target(["100", "0", "5", "10"], false), None);
+    assert_eq!(crate::min_target(["", "10", "5", "10"], true, 1.0), None);
+    assert_eq!(crate::min_target(["100", "0", "5", "10"], false, 1.0), None);
 }
 
 #[test]
 fn target_uses_initial_risk_for_both_trade_sides()
 {
-    let long = crate::target(["100", "10", "5", "10"], "90", true).unwrap();
-    let short = crate::target(["100", "10", "5", "10"], "110", false).unwrap();
+    let long = crate::target(["100", "10", "5", "10"], "90", true, 1.0).unwrap();
+    let short = crate::target(["100", "10", "5", "10"], "110", false, 1.0).unwrap();
     // The initial risks at stoploss 90 and 110 are 215 and 225 respectively.
     assert!((long - (1070.0 + 215.0) / 9.5).abs() < 1e-10);
     assert!((short - (930.0 - 225.0) / 10.5).abs() < 1e-10);
-    assert_eq!(crate::target(["100", "10", "5", "10"], "", true), None);
-    assert_eq!(crate::target(["100", "10", "5", "10"], "80", false), None);
+    assert_eq!(crate::target(["100", "10", "5", "10"], "", true, 1.0), None);
+    assert_eq!(crate::target(["100", "10", "5", "10"], "80", false, 1.0), None);
 }
 
 #[test]
 fn target_uses_risk_even_when_the_implied_long_stoploss_is_negative()
 {
-    let minimum = crate::min_target(["100", "10", "0", "0"], true).unwrap();
-    let target = crate::target(["100", "10", "0", "0"], "-7", true).unwrap();
+    let minimum = crate::min_target(["100", "10", "0", "0"], true, 1.0).unwrap();
+    let target = crate::target(["100", "10", "0", "0"], "-7", true, 1.0).unwrap();
 
     assert_eq!(minimum, 100.0);
     assert_eq!(target, 207.0);
@@ -463,6 +463,52 @@ fn calculates_and_saves_trade_risks_when_closed()
         [], |row| row.get(0),
     ).unwrap();
     assert_eq!(calculated_columns, 6);
+}
+
+#[test]
+fn product_factor_changes_saved_trade_calculations_above_one()
+{
+    let mut store = Store::open(Path::new(":memory:")).unwrap();
+    store.connection.execute(
+        "UPDATE t_product SET tick = 0.5, tick_value = 10 WHERE name = 'FDX'", [],
+    ).unwrap();
+    let trade = NewTrade {
+        product: "FDX".into(),
+        date_buy: Some("2026-09-28".into()),
+        date_sell: Some("2026-09-29".into()),
+        is_long: true,
+        shares_buy: Some(2),
+        shares_sell: Some(2),
+        price_buy: 12.0,
+        price_sell: 14.0,
+        exchange_rate_buy: 1.0,
+        exchange_rate_sell: 1.0,
+        commission_buy: Some(0.0),
+        tax_buy: Some(0.0),
+        commission_sell: Some(0.0),
+        tax_sell: Some(0.0),
+        cost_other: 0.0,
+        risk_initial: 0.0,
+        risk_percent_initial: Some(1.0),
+        risk_percent_actual: None,
+        trade_pool: Some(400.0),
+        stoploss_initial: Some(11.0),
+    };
+    store.add_trade(trade.clone()).unwrap();
+    let saved = &store.load().unwrap().trades[0];
+    assert_eq!(saved.risk_initial, 10.0);
+    assert_eq!(saved.profit_loss, Some(20.0));
+    assert_eq!(saved.target_minimum, 12.0);
+    let first_id = saved.id;
+
+    store.connection.execute(
+        "UPDATE t_product SET tick = 0.25, tick_value = 2 WHERE name = 'FDX'", [],
+    ).unwrap();
+    store.add_trade(trade).unwrap();
+    let journal = store.load().unwrap();
+    let saved = journal.trades.iter().find(|saved| saved.id != first_id).unwrap();
+    assert_eq!(saved.risk_initial, 2.0);
+    assert_eq!(saved.profit_loss, Some(4.0));
 }
 
 #[test]

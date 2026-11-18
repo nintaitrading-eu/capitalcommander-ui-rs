@@ -1,11 +1,60 @@
 use crate::data::{NewTrade, Trade};
 use libcalculatorfinance::{
     convert_from_orig,
-    calculate_close_at_breakeven, calculate_close_at_preferred,
-    calculate_profit_loss, calculate_profit_loss_total, calculate_r_multiple,
-    calculate_risk, calculate_risk_initial,
-    calculate_stoploss, calculate_stoploss_initial, TradeType,
+    calculate_r_multiple, TradeType,
 };
+
+macro_rules! factor_calculation {
+    ($name:ident, $with_factor:ident, ($($arg:ident: $ty:ty),*) -> $result:ty) => {
+        pub(crate) fn $name($($arg: $ty,)* factor: f64) -> $result {
+            if factor > 1.0 {
+                libcalculatorfinance::$with_factor($($arg,)* factor)
+            } else {
+                libcalculatorfinance::$name($($arg),*)
+            }
+        }
+    };
+}
+
+factor_calculation!(calculate_shares_recommended, calculate_shares_recommended_with_factor,
+    (pool: f64, commission: f64, tax: f64, price: f64) -> i32);
+factor_calculation!(calculate_risk_percentage_initial, calculate_risk_percentage_initial_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     stoploss: f64, pool: f64, side: TradeType) -> f64);
+factor_calculation!(calculate_risk_percentage, calculate_risk_percentage_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     stoploss: f64, pool: f64, side: TradeType) -> f64);
+factor_calculation!(calculate_stoploss_initial, calculate_stoploss_initial_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     risk: f64, pool: f64, side: TradeType) -> f64);
+factor_calculation!(calculate_risk_initial, calculate_risk_initial_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     stoploss: f64, side: TradeType) -> f64);
+factor_calculation!(calculate_risk, calculate_risk_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     risk_initial: f64, profit_loss: f64) -> f64);
+factor_calculation!(calculate_stoploss, calculate_stoploss_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     risk: f64, pool: f64, side: TradeType) -> f64);
+factor_calculation!(calculate_profit_loss, calculate_profit_loss_with_factor,
+    (price_buy: f64, shares_buy: i32, price_sell: f64, shares_sell: i32) -> f64);
+factor_calculation!(calculate_profit_loss_total, calculate_profit_loss_total_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64) -> f64);
+factor_calculation!(calculate_close_at_breakeven, calculate_close_at_breakeven_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     side: TradeType) -> f64);
+factor_calculation!(calculate_close_at_preferred, calculate_close_at_preferred_with_factor,
+    (price_buy: f64, shares_buy: i32, tax_buy: f64, commission_buy: f64,
+     price_sell: f64, shares_sell: i32, tax_sell: f64, commission_sell: f64,
+     risk_initial: f64, side: TradeType) -> f64);
 
 impl Trade
 {
@@ -17,7 +66,7 @@ impl Trade
     }
 }
 
-pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
+pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64, factor: f64) -> Result<
     (
         Option<f64>,
         Option<f64>,
@@ -56,7 +105,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             commission_sell,
             risk_percent_initial,
             pool_value,
-            trade_type(trade.is_long),
+            trade_type(trade.is_long), factor,
         )),
         (None, None) => None,
     };
@@ -72,7 +121,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             tax_sell,
             commission_sell,
             stoploss_initial,
-            trade_type(trade.is_long),
+            trade_type(trade.is_long), factor,
         )
     }
     else
@@ -97,7 +146,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     let target_minimum = calculate_close_at_breakeven(
         entry_buy_price, entry_buy_shares, entry_buy_tax, entry_buy_commission,
         entry_sell_price, entry_sell_shares, entry_sell_tax, entry_sell_commission,
-        trade_type(trade.is_long),
+        trade_type(trade.is_long), factor,
     );
     if !target_minimum.is_finite() || target_minimum < 0.0
     {
@@ -106,7 +155,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
     let target_preferred = stoploss_initial.map(|_| calculate_close_at_preferred(
         entry_buy_price, entry_buy_shares, entry_buy_tax, entry_buy_commission,
         entry_sell_price, entry_sell_shares, entry_sell_tax, entry_sell_commission,
-        risk_initial, trade_type(trade.is_long),
+        risk_initial, trade_type(trade.is_long), factor,
     ));
     if target_preferred.is_some_and(|value| !value.is_finite() || value < 0.0)
     {
@@ -117,7 +166,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             trade.price_buy,
             shares_buy,
             trade.price_sell,
-            shares_sell,
+            shares_sell, factor,
         )
     });
     let profit_loss_total = (trade.date_buy.is_some() && trade.date_sell.is_some()).then(|| {
@@ -129,7 +178,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             trade.price_sell,
             shares_sell,
             tax_sell,
-            commission_sell,
+            commission_sell, factor,
         ) - trade.cost_other
     });
     let r_multiple = profit_loss
@@ -146,7 +195,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             tax_sell,
             commission_sell,
             risk_initial,
-            pl,
+            pl, factor,
         )
     });
     if risk_actual.is_some() && (!pool_value.is_finite() || pool_value <= 0.0)
@@ -165,7 +214,7 @@ pub(crate) fn trade_calculations(trade: &NewTrade, pool_value: f64) -> Result<
             commission_sell,
             risk / pool_value * 100.0,
             pool_value,
-            trade_type(trade.is_long),
+            trade_type(trade.is_long), factor,
         )
     });
     if stoploss_actual.is_some_and(|value| !value.is_finite() || value < 0.0)

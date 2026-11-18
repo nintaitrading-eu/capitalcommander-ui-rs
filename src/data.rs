@@ -567,6 +567,10 @@ impl Store
             .optional()
             .map_err(db_error)?
             .ok_or("Select a product by name")?;
+        let factor: f64 = self.connection.query_row(
+            "SELECT tick * tick_value FROM t_product WHERE product_id = ?1",
+            [product_id], |row| row.get(0),
+        ).map_err(db_error)?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         let pool_value = match trade.trade_pool
         {
@@ -597,7 +601,7 @@ impl Store
             )
             .map_err(db_error)?;
         let cost_id = transaction.last_insert_rowid();
-        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value)?;
+        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, factor)?;
         transaction
             .execute(
                 "INSERT INTO t_trade_calculated(risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, risk_percent_initial, risk_percent_actual, stoploss_initial, stoploss_actual, target_minimum, target_preferred, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple)
@@ -669,6 +673,10 @@ impl Store
             .optional()
             .map_err(db_error)?
             .ok_or_else(|| format!("Trade #{id} does not exist or is already closed"))?;
+        let factor: f64 = self.connection.query_row(
+            "SELECT tick * tick_value FROM t_product WHERE product_id = ?1",
+            [product_id], |row| row.get(0),
+        ).map_err(db_error)?;
         let transaction = self.connection.transaction().map_err(db_error)?;
         transaction
             .execute(
@@ -685,7 +693,7 @@ impl Store
                 ],
             )
             .map_err(db_error)?;
-        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value)?;
+        let (stoploss_initial, stoploss_actual, target_minimum, target_preferred, risk_initial, risk_initial_converted, risk_actual, risk_actual_converted, profit_loss, profit_loss_converted, profit_loss_total, profit_loss_total_converted, r_multiple) = trade_calculations(&trade, pool_value, factor)?;
         transaction
             .execute(
                 "UPDATE t_trade SET product_id = ?1, date_buy = ?2, date_sell = ?3, is_long = ?4,

@@ -4,8 +4,9 @@ mod util;
 mod calculatorfinance_lib;
 
 use data::{Journal, NewTrade, Store, Trade, MAX_REVIEW_IMAGE_BYTES};
-use calculatorfinance_lib::{trade_type};
-use libcalculatorfinance::{calculate_close_at_breakeven, calculate_close_at_preferred, calculate_risk_initial, calculate_shares_recommended, calculate_stoploss_initial, calculate_risk_percentage_initial, calculate_risk_percentage};
+use calculatorfinance_lib::{trade_type, calculate_close_at_breakeven, calculate_close_at_preferred,
+    calculate_risk_initial, calculate_shares_recommended, calculate_stoploss_initial,
+    calculate_risk_percentage_initial, calculate_risk_percentage};
 use util::{check_date, date_in_range, format_number, optional_nonnegative, optional_shares, validated_as_positive};
 use slint::{language::StandardListViewItem, Image, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
@@ -13,21 +14,27 @@ use std::rc::Rc;
 
 slint::include_modules!();
 
-fn min_target(inputs: [&str; 4], is_long: bool) -> Option<f64>
+fn product_factor(journal: &Journal, name: &str) -> f64
+{
+    journal.products.iter().find(|product| product.name == name)
+        .map(|product| product.tick * product.tick_value).unwrap_or(1.0)
+}
+
+fn min_target(inputs: [&str; 4], is_long: bool, factor: f64) -> Option<f64>
 {
     let (price, shares, tax, commission) = target_inputs(inputs)?;
     let value = if is_long
     {
-        calculate_close_at_breakeven(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, trade_type(true))
+        calculate_close_at_breakeven(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, trade_type(true), factor)
     }
     else
     {
-        calculate_close_at_breakeven(0.0, 0, 0.0, 0.0, price, shares, tax, commission, trade_type(false))
+        calculate_close_at_breakeven(0.0, 0, 0.0, 0.0, price, shares, tax, commission, trade_type(false), factor)
     };
     (value.is_finite() && value >= 0.0).then_some(value)
 }
 
-fn recommended_shares(pool: &str, inputs: [&str; 3]) -> Option<i32>
+fn recommended_shares(pool: &str, inputs: [&str; 3], factor: f64) -> Option<i32>
 {
     let pool = pool.trim().parse::<f64>().ok()?;
     let commission = inputs[0].trim().parse::<f64>().ok()?;
@@ -38,7 +45,7 @@ fn recommended_shares(pool: &str, inputs: [&str; 3]) -> Option<i32>
     {
         return None;
     }
-    Some(calculate_shares_recommended(pool, commission, tax, price).max(0))
+    Some(calculate_shares_recommended(pool, commission, tax, price, factor).max(0))
 }
 
 fn target_inputs(inputs: [&str; 4]) -> Option<(f64, i32, f64, f64)>
@@ -70,7 +77,7 @@ fn initial_trade_inputs(
     }
 }
 
-fn target(inputs: [&str; 4], stoploss: &str, is_long: bool) -> Option<f64>
+fn target(inputs: [&str; 4], stoploss: &str, is_long: bool, factor: f64) -> Option<f64>
 {
     let (price, shares, tax, commission) = target_inputs(inputs)?;
     let stoploss = stoploss.trim().parse::<f64>().ok()?;
@@ -80,11 +87,11 @@ fn target(inputs: [&str; 4], stoploss: &str, is_long: bool) -> Option<f64>
     }
     let risk = if is_long
     {
-        calculate_risk_initial(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, stoploss, trade_type(true))
+        calculate_risk_initial(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, stoploss, trade_type(true), factor)
     }
     else
     {
-        calculate_risk_initial(0.0, 0, 0.0, 0.0, price, shares, tax, commission, stoploss, trade_type(false))
+        calculate_risk_initial(0.0, 0, 0.0, 0.0, price, shares, tax, commission, stoploss, trade_type(false), factor)
     };
     if !risk.is_finite() || risk < 0.0
     {
@@ -92,11 +99,11 @@ fn target(inputs: [&str; 4], stoploss: &str, is_long: bool) -> Option<f64>
     }
     let value = if is_long
     {
-        calculate_close_at_preferred(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, risk, trade_type(true))
+        calculate_close_at_preferred(price, shares, tax, commission, 0.0, 0, 0.0, 0.0, risk, trade_type(true), factor)
     }
     else
     {
-        calculate_close_at_preferred(0.0, 0, 0.0, 0.0, price, shares, tax, commission, risk, trade_type(false))
+        calculate_close_at_preferred(0.0, 0, 0.0, 0.0, price, shares, tax, commission, risk, trade_type(false), factor)
     };
     (value.is_finite() && value >= 0.0).then_some(value)
 }
@@ -464,8 +471,10 @@ fn main() -> Result<(), slint::PlatformError>
 
     /* Event: on_calculate_shares_recommended */
 
+    let model = journal.clone();
     window.on_calculate_shares_recommended(
-        |pool, commission_buy, tax_buy, price_buy, commission_sell, tax_sell, price_sell, side| {
+        move |pool, commission_buy, tax_buy, price_buy, commission_sell, tax_sell, price_sell, side, product| {
+            let factor = product_factor(&model.borrow(), &product);
             let inputs = if side == "Long"
             {
                 [&*commission_buy, &*tax_buy, &*price_buy]
@@ -474,7 +483,7 @@ fn main() -> Result<(), slint::PlatformError>
             {
                 [&*commission_sell, &*tax_sell, &*price_sell]
             };
-            recommended_shares(&pool, inputs)
+            recommended_shares(&pool, inputs, factor)
                 .map(|value| value.to_string())
                 .unwrap_or_else(|| "0".into())
                 .into()
@@ -483,8 +492,10 @@ fn main() -> Result<(), slint::PlatformError>
 
     /* Event: on_calculate_min_target */
 
+    let model = journal.clone();
     window.on_calculate_min_target(
-        |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, side| {
+        move |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, side, product| {
+            let factor = product_factor(&model.borrow(), &product);
             let inputs = if side == "Long"
             {
                 [&*price_buy, &*shares_buy, &*tax_buy, &*commission_buy]
@@ -493,7 +504,7 @@ fn main() -> Result<(), slint::PlatformError>
             {
                 [&*price_sell, &*shares_sell, &*tax_sell, &*commission_sell]
             };
-            min_target(inputs, side == "Long")
+            min_target(inputs, side == "Long", factor)
                 .map(|value| format!("{value:.2}"))
                 .unwrap_or_else(|| "0.0".into())
                 .into()
@@ -502,8 +513,10 @@ fn main() -> Result<(), slint::PlatformError>
 
     /* Event: on_calculate_target */
 
+    let model = journal.clone();
     window.on_calculate_target(
-        |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss, side| {
+        move |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss, side, product| {
+            let factor = product_factor(&model.borrow(), &product);
             let inputs = if side == "Long"
             {
                 [&*price_buy, &*shares_buy, &*tax_buy, &*commission_buy]
@@ -512,7 +525,7 @@ fn main() -> Result<(), slint::PlatformError>
             {
                 [&*price_sell, &*shares_sell, &*tax_sell, &*commission_sell]
             };
-            target(inputs, &stoploss, side == "Long")
+            target(inputs, &stoploss, side == "Long", factor)
                 .map(|value| format!("{value:.2}"))
                 .unwrap_or_else(|| "0.0".into())
                 .into()
@@ -521,8 +534,9 @@ fn main() -> Result<(), slint::PlatformError>
 
     /* Event: on_calculate_risk_initial*/
 
+    let model = journal.clone();
     window.on_calculate_risk_initial(
-        |stoploss,
+        move |stoploss,
          price_buy,
          price_sell,
          shares_buy,
@@ -531,7 +545,8 @@ fn main() -> Result<(), slint::PlatformError>
          commission_sell,
          tax_buy,
          tax_sell,
-         side| {
+         side, product| {
+            let factor = product_factor(&model.borrow(), &product);
             initial_trade_inputs(
                 [&price_buy, &shares_buy, &tax_buy, &commission_buy],
                 [&price_sell, &shares_sell, &tax_sell, &commission_sell],
@@ -549,7 +564,7 @@ fn main() -> Result<(), slint::PlatformError>
                         tax_sell,
                         commission_sell,
                         stoploss,
-                        trade_type(side == "Long"),
+                        trade_type(side == "Long"), factor,
                 ))
             })
             .filter(|value| value.is_finite() && *value >= 0.0)
@@ -560,9 +575,10 @@ fn main() -> Result<(), slint::PlatformError>
     );
 
     /* Event: on_calculate_stoploss_initial */
-    
+
+    let model = journal.clone();
     window.on_calculate_stoploss_initial(
-        |pool,
+        move |pool,
          risk_percent,
          price_buy,
          price_sell,
@@ -572,7 +588,8 @@ fn main() -> Result<(), slint::PlatformError>
          commission_sell,
          tax_buy,
          tax_sell,
-         side| {
+         side, product| {
+            let factor = product_factor(&model.borrow(), &product);
             initial_trade_inputs(
                 [&price_buy, &shares_buy, &tax_buy, &commission_buy],
                 [&price_sell, &shares_sell, &tax_sell, &commission_sell],
@@ -596,7 +613,7 @@ fn main() -> Result<(), slint::PlatformError>
                     commission_sell,
                     risk_percent,
                     pool,
-                    trade_type(side == "Long"),
+                    trade_type(side == "Long"), factor,
                 ))
             })
             .filter(|value| value.is_finite() && *value >= 0.0)
@@ -608,8 +625,9 @@ fn main() -> Result<(), slint::PlatformError>
 
     /* Event: on_calculate_risk_percentage_initial */
 
+    let model = journal.clone();
     window.on_calculate_risk_percentage_initial(
-        |price_buy,
+        move |price_buy,
          shares_buy,
          tax_buy,
          commission_buy,
@@ -619,7 +637,8 @@ fn main() -> Result<(), slint::PlatformError>
          commission_sell,
          stoploss,
          pool,
-         side| {
+         side, product| {
+            let factor = product_factor(&model.borrow(), &product);
             initial_trade_inputs(
                 [&price_buy, &shares_buy, &tax_buy, &commission_buy],
                 [&price_sell, &shares_sell, &tax_sell, &commission_sell],
@@ -635,7 +654,7 @@ fn main() -> Result<(), slint::PlatformError>
                     Some(calculate_risk_percentage_initial(
                         price_buy, shares_buy, tax_buy, commission_buy,
                         price_sell, shares_sell, tax_sell, commission_sell,
-                        stoploss, pool, trade_type(side == "Long"),
+                        stoploss, pool, trade_type(side == "Long"), factor,
                     ))
                 })
                 .filter(|value| value.is_finite() && *value >= 0.0)
@@ -674,14 +693,10 @@ fn main() -> Result<(), slint::PlatformError>
             {
                 let result = (|| -> Result<(), String> {
                     let product = product.trim();
-                    if !model
-                        .borrow()
-                        .products
-                        .iter()
-                        .any(|item| item.name == product)
-                    {
-                        return Err("Select a product by name".into());
-                    }
+                    let factor = model.borrow().products.iter()
+                        .find(|item| item.name == product)
+                        .map(|item| item.tick * item.tick_value)
+                        .ok_or("Select a product by name")?;
                     check_date(&date_buy, "Buy date", true)?;
                     check_date(&date_sell, "Sell date", true)?;
                     let is_long = side == "Long";
@@ -782,7 +797,7 @@ fn main() -> Result<(), slint::PlatformError>
                         calculate_stoploss_initial(
                             price_buy, shares_buy_value, tax_buy_value, commission_buy_value,
                             price_sell, shares_sell_value, tax_sell_value, commission_sell_value,
-                            risk_percent, trade_pool, trade_type(is_long),
+                            risk_percent, trade_pool, trade_type(is_long), factor,
                         )
                     })).ok_or("Enter risk % or stoploss")?;
                     if !stoploss_initial.is_finite() || stoploss_initial < 0.0
@@ -792,7 +807,7 @@ fn main() -> Result<(), slint::PlatformError>
                     let risk_initial = calculate_risk_initial(
                         price_buy, shares_buy_value, tax_buy_value, commission_buy_value,
                         price_sell, shares_sell_value, tax_sell_value, commission_sell_value,
-                        stoploss_initial, trade_type(is_long),
+                        stoploss_initial, trade_type(is_long), factor,
                     );
                     if !risk_initial.is_finite() || risk_initial < 0.0
                     {
@@ -801,7 +816,7 @@ fn main() -> Result<(), slint::PlatformError>
                     let risk_percent_initial = calculate_risk_percentage_initial(
                         price_buy, shares_buy_value, tax_buy_value, commission_buy_value,
                         price_sell, shares_sell_value, tax_sell_value, commission_sell_value,
-                        stoploss_initial, trade_pool, trade_type(is_long),
+                        stoploss_initial, trade_pool, trade_type(is_long), factor,
                     );
                     if !risk_percent_initial.is_finite() || risk_percent_initial < 0.0
                     {
@@ -813,7 +828,7 @@ fn main() -> Result<(), slint::PlatformError>
                     }
                     else
                     {
-                        Some(calculate_risk_percentage(price_buy, shares_buy_value, tax_buy_value, commission_buy_value, price_sell, shares_sell_value, tax_sell_value, commission_sell_value, stoploss_initial, trade_pool, trade_type(is_long)))
+                        Some(calculate_risk_percentage(price_buy, shares_buy_value, tax_buy_value, commission_buy_value, price_sell, shares_sell_value, tax_sell_value, commission_sell_value, stoploss_initial, trade_pool, trade_type(is_long), factor))
                     };
                     let trade_pool = if trade_id == 0
                     {
