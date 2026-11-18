@@ -473,7 +473,8 @@ fn main() -> Result<(), slint::PlatformError>
 
     let model = journal.clone();
     window.on_calculate_shares_recommended(
-        move |pool, commission_buy, tax_buy, price_buy, commission_sell, tax_sell, price_sell, side, product| {
+        move |pool, commission_buy, tax_buy, price_buy, commission_sell, tax_sell, price_sell, side, product|
+        {
             let factor = product_factor(&model.borrow(), &product);
             let inputs = if side == "Long"
             {
@@ -494,7 +495,8 @@ fn main() -> Result<(), slint::PlatformError>
 
     let model = journal.clone();
     window.on_calculate_min_target(
-        move |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, side, product| {
+        move |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, side, product|
+        {
             let factor = product_factor(&model.borrow(), &product);
             let inputs = if side == "Long"
             {
@@ -515,7 +517,8 @@ fn main() -> Result<(), slint::PlatformError>
 
     let model = journal.clone();
     window.on_calculate_target(
-        move |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss, side, product| {
+        move |price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell, stoploss, side, product|
+        {
             let factor = product_factor(&model.borrow(), &product);
             let inputs = if side == "Long"
             {
@@ -552,7 +555,8 @@ fn main() -> Result<(), slint::PlatformError>
                 [&price_sell, &shares_sell, &tax_sell, &commission_sell],
                 side == "Long",
             )
-            .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)| {
+            .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)|
+            {
                 let stoploss = stoploss.trim().parse::<f64>().ok()?;
                 Some(calculate_risk_initial(
                         price_buy,
@@ -595,7 +599,8 @@ fn main() -> Result<(), slint::PlatformError>
                 [&price_sell, &shares_sell, &tax_sell, &commission_sell],
                 side == "Long",
             )
-            .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)| {
+            .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)|
+            {
                 let pool = pool.trim().parse::<f64>().ok()?;
                 let risk_percent = risk_percent.trim().parse::<f64>().ok()?;
                 if pool <= 0.0 || risk_percent < 0.0
@@ -637,14 +642,17 @@ fn main() -> Result<(), slint::PlatformError>
          commission_sell,
          stoploss,
          pool,
-         side, product| {
+         side,
+         product|
+         {
             let factor = product_factor(&model.borrow(), &product);
             initial_trade_inputs(
                 [&price_buy, &shares_buy, &tax_buy, &commission_buy],
                 [&price_sell, &shares_sell, &tax_sell, &commission_sell],
                 side == "Long",
             )
-                .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)| {
+            .and_then(|(price_buy, shares_buy, tax_buy, commission_buy, price_sell, shares_sell, tax_sell, commission_sell)|
+                {
                     let stoploss = stoploss.trim().parse::<f64>().ok()?;
                     let pool = pool.trim().parse::<f64>().ok()?;
                     if pool <= 0.0
@@ -657,10 +665,10 @@ fn main() -> Result<(), slint::PlatformError>
                         stoploss, pool, trade_type(side == "Long"), factor,
                     ))
                 })
-                .filter(|value| value.is_finite() && *value >= 0.0)
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "0.0".into())
-                .into()
+            .filter(|value| value.is_finite() && *value >= 0.0)
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "0.0".into())
+            .into()
         },
     );
 
@@ -688,7 +696,8 @@ fn main() -> Result<(), slint::PlatformError>
               cost_other,
               risk,
               stoploss,
-              trade_pool| {
+              trade_pool|
+        {
             if let Some(window) = weak.upgrade()
             {
                 let result = (|| -> Result<(), String> {
